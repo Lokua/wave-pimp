@@ -176,6 +176,7 @@ export default function App() {
   if (detailFile) {
     return (
       <div id="app">
+        <div className="custom-titlebar" />
         <DetailView
           file={detailFile}
           theme={theme}
@@ -193,6 +194,7 @@ export default function App() {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      <div className="custom-titlebar" />
       {showPrefs && (
         <div className="prefs-overlay" onClick={() => setShowPrefs(false)}>
           <div className="prefs-panel" onClick={(e) => e.stopPropagation()}>

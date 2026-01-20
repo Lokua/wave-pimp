@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import WaveSurfer from 'wavesurfer.js'
 import Spectrogram from 'wavesurfer.js/dist/plugins/spectrogram.esm.js'
+import IconButton from './IconButton'
 import type { AudioFile, ThemePreferences } from './types'
 
 interface WaveCardProps {
@@ -128,29 +129,45 @@ export default function WaveCard({
       className={`wave-card ${isSelected ? 'selected' : ''}`}
       onClick={onSelect}
     >
+      <div className="wave-card-header-actions">
+        <IconButton
+          name="Edit"
+          onClick={(e) => {
+            e.stopPropagation()
+            onDoubleClick()
+          }}
+          title="Detail View"
+        />
+        <IconButton
+          name="Close"
+          onClick={(e) => {
+            e.stopPropagation()
+            onRemove()
+          }}
+          title="Remove (Delete/Cmd+X)"
+        />
+      </div>
       <div className="wave-card-waveform" ref={waveformRef} />
       <div className="wave-card-spectrogram" ref={spectrogramRef} />
 
       <div className="wave-card-controls">
-        <button
-          className="wave-card-transport-button"
+        <IconButton
+          name={isPlaying ? 'Pause' : 'Play'}
           onClick={handlePlayPause}
-        >
-          {isPlaying ? '⏸' : '▶'}
-        </button>
-        <button
-          className="wave-card-transport-button"
-          onClick={() => {
+          title={isPlaying ? 'Pause' : 'Play'}
+        />
+        <IconButton
+          name="Restart"
+          onClick={(e) => {
+            e.stopPropagation()
             if (wavesurferRef.current) {
               wavesurferRef.current.seekTo(0)
               wavesurferRef.current.setTime(0)
               setCurrentTime(0)
             }
           }}
-          title="Start Over"
-        >
-          {'⏮'}
-        </button>
+          title="Restart"
+        />
         <div className="wave-card-transport-time">
           {formatTime(currentTime || 0)} / {formatTime(file.duration || 0)}
         </div>
@@ -158,6 +175,7 @@ export default function WaveCard({
 
       <div className="wave-card-info">
         <div className="wave-card-name-row">
+          {hasUnsaved && <span className="unsaved-indicator">*</span>}
           <input
             type="text"
             className="wave-card-name-input"
@@ -165,41 +183,36 @@ export default function WaveCard({
             title={editValue}
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={onKeyDown}
-            onBlur={onEditSave}
             onClick={(e) => e.stopPropagation()}
           />
-          {hasUnsaved && '*'}
+          {hasUnsaved && (
+            <>
+              <IconButton
+                name="Save"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSave()
+                }}
+                title="Save (Cmd+S)"
+                className="inline-action"
+              />
+              <IconButton
+                name="Cancel"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setEditValue(displayName)
+                }}
+                title="Cancel"
+                className="inline-action"
+              />
+            </>
+          )}
         </div>
 
         <div className="wave-card-metadata">
           <span>{formatDuration(file.duration)}</span>
           <span>{formatSampleRate(file.sample_rate)}</span>
           <span>{file.channels ? `${file.channels}ch` : '--'}</span>
-        </div>
-
-        <div className="wave-card-actions">
-          <button
-            className="wave-card-button"
-            onClick={onDoubleClick}
-            title="Detail View"
-          >
-            Edit
-          </button>
-          <button
-            className="wave-card-button"
-            onClick={onRemove}
-            title="Remove (Delete/Cmd+X)"
-          >
-            Remove
-          </button>
-          <button
-            disabled={!hasUnsaved}
-            className="wave-card-button"
-            onClick={onSave}
-            title="Save (Cmd+S)"
-          >
-            Save
-          </button>
         </div>
       </div>
     </div>
