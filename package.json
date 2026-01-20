@@ -1,0 +1,41 @@
+{
+  "name": "vmc",
+  "private": true,
+  "version": "0.0.2",
+  "type": "module",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "start": "vite",
+    "build": "tsc && vite build && electron-builder --config electron-builder.ts",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@lokua/number-box": "^3.0.0-beta.2",
+    "@material-symbols/svg-400": "0.40.2",
+    "@wavesurfer/react": "1.0.12",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "wavesurfer.js": "7.12.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.21.0",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@typescript-eslint/eslint-plugin": "^7.1.1",
+    "@typescript-eslint/parser": "^7.1.1",
+    "@vitejs/plugin-react": "^4.2.1",
+    "@vitejs/plugin-react-swc": "^3.8.0",
+    "electron": "^30.0.1",
+    "electron-builder": "^24.13.3",
+    "eslint": "^9.21.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react-refresh": "^0.4.19",
+    "globals": "^15.15.0",
+    "typescript": "~5.7.2",
+    "typescript-eslint": "^8.24.1",
+    "vite": "^6.2.0",
+    "vite-plugin-electron": "^0.28.6",
+    "vite-plugin-electron-renderer": "^0.14.5"
+  }
+}
