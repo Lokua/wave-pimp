@@ -14,6 +14,7 @@
     "@lokua/number-box": "^3.0.0-beta.2",
     "@material-symbols/svg-400": "0.40.2",
     "@wavesurfer/react": "1.0.12",
+    "clsx": "2.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "wavesurfer.js": "7.12.1"
