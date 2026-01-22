@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
+import contextMenu from 'electron-context-menu'
 
 // const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -74,21 +75,32 @@ app.on('activate', () => {
   }
 })
 
-ipcMain.handle('rename-file', async (_, data: {
-  old_name: string
-  new_name: string
-}) => {
-  try {
-    const { old_name, new_name } = data
-    const old_path = path.resolve(old_name)
-    const dir = path.dirname(old_path)
-    const new_path = path.join(dir, new_name)
-    await fs.rename(old_path, new_path)
-    return { success: true }
-  } catch (error) {
-    console.error('Failed to rename file:', error)
-    throw error
-  }
+ipcMain.handle(
+  'rename-file',
+  async (
+    _,
+    data: {
+      old_name: string
+      new_name: string
+    },
+  ) => {
+    try {
+      const { old_name, new_name } = data
+      const old_path = path.resolve(old_name)
+      const dir = path.dirname(old_path)
+      const new_path = path.join(dir, new_name)
+      await fs.rename(old_path, new_path)
+      return { success: true }
+    } catch (error) {
+      console.error('Failed to rename file:', error)
+      throw error
+    }
+  },
+)
+
+contextMenu({
+  showLearnSpelling: false,
+  showInspectElement: true,
 })
 
 app.whenReady().then(createWindow)
