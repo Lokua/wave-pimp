@@ -4,18 +4,18 @@
 
 @media (prefers-color-scheme: light) {
   :root {
-    --background-color: #fff;
-    --text-color: #000;
+    --background-color: #eee;
+    --text-color: #333;
     --selection-color: rgba(100, 149, 237, 0.15);
-    --bg-main: #fff;
-    --bg-canvas: #f8f8f8;
-    --bg-controls: #fff;
+    --bg-main: #eee;
+    --bg-canvas: #fff;
+    --bg-controls: #f8f8f8;
     --border-color: #ccc;
-    --border-canvas: #333;
+    --border-canvas: #ccc;
     --button-bg: #fff;
     --button-hover: #f0f0f0;
     --button-active: #e0e0e0;
-    --waveform-color: #000;
+    --waveform-color: #333;
     --zero-line-color: #d0d0d0;
     --separator-color: #999;
     --cursor-color: #f00;

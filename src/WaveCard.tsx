@@ -19,10 +19,11 @@ const Card = styled.article<{ isSelected: boolean }>`
   margin: 0 auto;
   padding: 16px;
   gap: 12px;
-  border: 1px solid
-    ${({ isSelected }) =>
-      isSelected ? 'var(--text-color)' : 'var(--border-color)'};
-  border-radius: 4px;
+  border: ${({ isSelected }) =>
+    isSelected ? '1px solid transparent' : '1px solid var(--border-color)'};
+  box-shadow: ${({ isSelected }) =>
+    isSelected ? '0 0 0 2px var(--text-color)' : 'none'};
+  border-radius: 2px;
   background: var(--bg-controls);
 `
 
