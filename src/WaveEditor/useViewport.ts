@@ -43,8 +43,7 @@ export default function useViewport({
 
     if (canvasWidth <= 0) return
 
-    let nextSamplesPerPixel = totalSamples / (canvasWidth * zoomLevel)
-    if (nextSamplesPerPixel < 1) nextSamplesPerPixel = 1
+    const nextSamplesPerPixel = totalSamples / (canvasWidth * zoomLevel)
 
     const visibleSamples = canvasWidth * nextSamplesPerPixel
     const maxStart = Math.max(0, totalSamples - visibleSamples)
@@ -112,12 +111,12 @@ export default function useViewport({
     const cursorScreenX =
       (playheadSample - viewStartSampleRef.current) / samplesPerPixelRef.current
 
-    let nextZoom = zoomLevelRef.current * 1.5
-    let newSamplesPerPixel = totalSamples / (canvasWidthRef.current * nextZoom)
-    if (newSamplesPerPixel < 1) {
-      newSamplesPerPixel = 1
-      nextZoom = totalSamples / (canvasWidthRef.current * 1)
-    }
+    const nextZoom = zoomLevelRef.current * 1.5
+    const newSamplesPerPixel =
+      totalSamples / (canvasWidthRef.current * nextZoom)
+
+    // Cap minimum samplesPerPixel at 0.01
+    if (newSamplesPerPixel < 0.01) return
 
     const nextViewStart = playheadSample - cursorScreenX * newSamplesPerPixel
     zoomLevelRef.current = nextZoom
@@ -131,12 +130,9 @@ export default function useViewport({
     const cursorScreenX =
       (playheadSample - viewStartSampleRef.current) / samplesPerPixelRef.current
 
-    let nextZoom = Math.max(1, zoomLevelRef.current / 1.5)
-    let newSamplesPerPixel = totalSamples / (canvasWidthRef.current * nextZoom)
-    if (newSamplesPerPixel < 1) {
-      newSamplesPerPixel = 1
-      nextZoom = totalSamples / (canvasWidthRef.current * 1)
-    }
+    const nextZoom = Math.max(1, zoomLevelRef.current / 1.5)
+    const newSamplesPerPixel =
+      totalSamples / (canvasWidthRef.current * nextZoom)
 
     const nextViewStart = playheadSample - cursorScreenX * newSamplesPerPixel
     zoomLevelRef.current = nextZoom
@@ -155,6 +151,9 @@ export default function useViewport({
     viewStartSampleRef.current = 0
   }, [])
 
+  const canZoomIn = samplesPerPixelRef.current > 0.0101
+  const canZoomOut = zoomLevelRef.current > 1
+
   return {
     canvasRevision,
     visiblePeaksRef,
@@ -170,5 +169,7 @@ export default function useViewport({
     onZoomIn,
     onZoomOut,
     onZoomFit,
+    canZoomIn,
+    canZoomOut,
   }
 }

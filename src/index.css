@@ -16,6 +16,7 @@
     --button-hover: #f0f0f0;
     --button-active: #e0e0e0;
     --waveform-color: #333;
+    --waveform-color-lighter: #bbb;
     --zero-line-color: #d0d0d0;
     --separator-color: #999;
     --cursor-color: #f00;
@@ -36,6 +37,7 @@
     --button-hover: #333;
     --button-active: #444;
     --waveform-color: #d0d0d0;
+    --waveform-color-lighter: #999;
     --zero-line-color: #666;
     --separator-color: #666;
     --cursor-color: #ff6666;

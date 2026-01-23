@@ -95,6 +95,8 @@ export default function Editor({
     onZoomIn,
     onZoomOut,
     onZoomFit,
+    canZoomIn,
+    canZoomOut,
   } = useViewport({
     audioBuffer,
     maxCacheWidth: MAX_CACHE_WIDTH,
@@ -242,6 +244,8 @@ export default function Editor({
         onClickSave={onClickSave}
         onClickSaveAs={onClickSaveAs}
         onBack={onBack}
+        canZoomIn={canZoomIn}
+        canZoomOut={canZoomOut}
       />
       <CanvasContainer>
         <CanvasInteraction

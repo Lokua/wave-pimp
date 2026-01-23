@@ -69,10 +69,14 @@ export function getVisiblePeaksFromCache({
   for (let ch = 0; ch < nChannels; ch++) {
     const peakCacheLevels = peaksCache[ch]
     let bestLevel = peakCacheLevels[peakCacheLevels.length - 1]
-    for (let i = peakCacheLevels.length - 1; i >= 0; i--) {
-      if (peakCacheLevels[i].blockSize <= samplesPerPixel) {
-        bestLevel = peakCacheLevels[i]
-        break
+    if (samplesPerPixel < 1) {
+      bestLevel = peakCacheLevels[0]
+    } else {
+      for (let i = peakCacheLevels.length - 1; i >= 0; i--) {
+        if (peakCacheLevels[i].blockSize <= samplesPerPixel) {
+          bestLevel = peakCacheLevels[i]
+          break
+        }
       }
     }
 
@@ -81,15 +85,17 @@ export function getVisiblePeaksFromCache({
     const blockStartIdx = Math.floor(viewStartSample / blockSize)
     const blockEndIdx = Math.ceil(viewEndSample / blockSize)
     const visibleBlocks = blockEndIdx - blockStartIdx
-    let blocksPerPixel = visibleBlocks / canvasWidth
-    if (blocksPerPixel < 1) blocksPerPixel = 1
+    const blocksPerPixel = visibleBlocks / canvasWidth
 
     const visibleMin = new Float32Array(canvasWidth)
     const visibleMax = new Float32Array(canvasWidth)
 
     for (let i = 0; i < canvasWidth; i++) {
       const blockStart = Math.floor(blockStartIdx + i * blocksPerPixel)
-      const blockEnd = Math.floor(blockStartIdx + (i + 1) * blocksPerPixel)
+      const blockEnd = Math.max(
+        blockStart + 1,
+        Math.floor(blockStartIdx + (i + 1) * blocksPerPixel),
+      )
 
       let min = 1.0
       let max = -1.0

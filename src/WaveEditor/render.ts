@@ -1,7 +1,7 @@
 import type { SelectionRange, VisiblePeaks } from '../types'
 
 const ENVELOPE_FILL_MIN_SAMPLES_PER_PIXEL = 4
-const PEAK_LINE_MIN_SAMPLES_PER_PIXEL = 1
+const PEAK_LINE_MIN_SAMPLES_PER_PIXEL = 0.15
 
 type DrawWaveformOptions = {
   cssWidth: number
@@ -236,6 +236,7 @@ function drawChannelWaveform(
     zeroLineY,
     amplitudeScale,
     cssWidth,
+    samplesPerPixel,
   })
 }
 
@@ -341,31 +342,61 @@ function paintDotLine(
     zeroLineY,
     amplitudeScale,
     cssWidth,
+    samplesPerPixel,
   }: {
     maxs: Float32Array
     mins: Float32Array
     zeroLineY: number
     amplitudeScale: number
     cssWidth: number
+    samplesPerPixel: number
   },
 ) {
-  ctx.beginPath()
+  const pixelsPerSample = 1 / samplesPerPixel
+  const DOT_RADIUS = 2
 
-  for (let i = 0; i < cssWidth; i++) {
-    const min = mins[i] ?? 0
-    const max = maxs[i] ?? 0
-    const s = Math.abs(max) >= Math.abs(min) ? max : min
-    const x = i + 0.5
-    const y = zeroLineY - s * amplitudeScale
-    if (i === 0) ctx.moveTo(x, y)
-    else ctx.lineTo(x, y)
+  // Calculate how many samples are visible
+  const numSamples = Math.ceil(cssWidth / pixelsPerSample)
+
+  // Collect all sample points
+  const points: Array<{ x: number; y: number }> = []
+
+  for (let sampleIdx = 0; sampleIdx < numSamples; sampleIdx++) {
+    const pixelPos = sampleIdx * pixelsPerSample
+    const pixelIndex = Math.round(pixelPos)
+
+    if (pixelIndex >= mins.length || pixelIndex >= maxs.length) break
+
+    const min = mins[pixelIndex] ?? 0
+    const max = maxs[pixelIndex] ?? 0
+    const peak = Math.abs(max) >= Math.abs(min) ? max : min
+
+    const x = pixelIndex + 0.5
+    const y = zeroLineY - peak * amplitudeScale
+
+    points.push({ x, y })
   }
 
-  ctx.strokeStyle = readCssVar('--waveform-color')
-  ctx.lineWidth = 1
-  ctx.stroke()
-}
+  // Draw connecting lines
+  if (points.length > 1) {
+    ctx.beginPath()
+    ctx.moveTo(points[0].x, points[0].y)
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y)
+    }
+    ctx.strokeStyle = readCssVar('--waveform-color-lighter')
+    ctx.lineWidth = 1
+    ctx.stroke()
+  }
 
+  // Draw dots at sample points
+  ctx.fillStyle = readCssVar('--waveform-color')
+  for (const point of points) {
+    ctx.beginPath()
+    ctx.arc(point.x, point.y, DOT_RADIUS, 0, Math.PI * 2)
+    ctx.fill()
+  }
+}
 function readCssVar(name: string) {
   return getComputedStyle(document.documentElement).getPropertyValue(name)
 }

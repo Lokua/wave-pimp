@@ -46,6 +46,8 @@ type WaveEditorControlsProps = {
   onClickSave: () => void
   onClickSaveAs: () => void
   onBack: () => void
+  canZoomIn: boolean
+  canZoomOut: boolean
 }
 
 export default function WaveEditorControls({
@@ -67,6 +69,8 @@ export default function WaveEditorControls({
   onClickSave,
   onClickSaveAs,
   onBack,
+  canZoomIn,
+  canZoomOut,
 }: WaveEditorControlsProps) {
   return (
     <Controls>
@@ -94,6 +98,7 @@ export default function WaveEditorControls({
         aria-label="Zoom in"
         title="Zoom in"
         onClick={onClickZoomIn}
+        disabled={!canZoomIn}
       />
       <IconButton
         type="button"
@@ -101,6 +106,7 @@ export default function WaveEditorControls({
         aria-label="Zoom out"
         title="Zoom out"
         onClick={onClickZoomOut}
+        disabled={!canZoomOut}
       />
       <IconButton
         type="button"

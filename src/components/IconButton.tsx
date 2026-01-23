@@ -75,6 +75,11 @@ const IconButtonRoot = styled('button', {
     display: block;
     fill: currentColor;
   }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.3;
+  }
 `
 
 export default function IconButton({
