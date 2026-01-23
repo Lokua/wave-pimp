@@ -87,7 +87,7 @@ export default function WaveformCanvas({
     const canvasWidth = Math.max(1, Math.floor(width))
     const canvasHeight = Math.max(1, Math.floor(cssHeight))
 
-    const setup = (canvas: HTMLCanvasElement, ctxRef: CtxRef) => {
+    function setupCanvas(canvas: HTMLCanvasElement, ctxRef: CtxRef) {
       canvas.width = Math.floor(canvasWidth * dpr)
       canvas.height = Math.floor(canvasHeight * dpr)
       const ctx = canvas.getContext('2d')
@@ -96,8 +96,8 @@ export default function WaveformCanvas({
       ctxRef.current = ctx
     }
 
-    setup(baseCanvas, baseCtxRef)
-    setup(cursorCanvas, cursorCtxRef)
+    setupCanvas(baseCanvas, baseCtxRef)
+    setupCanvas(cursorCanvas, cursorCtxRef)
   }, [width, cssHeight])
 
   useEffect(() => {
@@ -127,8 +127,9 @@ export default function WaveformCanvas({
   ])
 
   useEffect(() => {
-    let frame: number
-    const draw = () => {
+    let frame = 0
+
+    function draw() {
       const ctx = cursorCtxRef.current
       if (ctx) {
         const cursorSample = getCursorSample ? getCursorSample() : null
@@ -142,6 +143,7 @@ export default function WaveformCanvas({
       }
       frame = requestAnimationFrame(draw)
     }
+
     frame = requestAnimationFrame(draw)
     return () => cancelAnimationFrame(frame)
   }, [cssHeight, getCursorSample, samplesPerPixel, viewStartSample, width])

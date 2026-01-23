@@ -1,24 +1,16 @@
 import styled from '@emotion/styled'
 import { useEffect, useMemo, useRef, useState } from 'react'
+
 import type { AudioFile, SelectionRange, VisiblePeaks } from './types'
 import WaveformCanvas from './WaveformCanvas'
+import IconButton from './IconButton'
 import useAudioPlayback from './useAudioPlayback'
 import { buildPeaksCache, getVisiblePeaksFromCache } from './waveformPeaks'
 
-const MAX_CACHE_WIDTH = 7680
-
-type WaveEditorProps = {
-  file: AudioFile
-  audioContext: AudioContext
-  onUpdateFile: (next: AudioFile) => void
-}
-
 const Controls = styled.div`
-  padding: 24px 32px;
+  padding: 0 32px;
   display: flex;
   gap: 8px;
-  background: var(--bg-controls);
-  border-bottom: 1px solid var(--border-color);
   flex-wrap: wrap;
 `
 
@@ -27,7 +19,7 @@ const CanvasContainer = styled.div`
   display: flex;
   align-items: stretch;
   justify-content: center;
-  padding: 32px;
+  padding: 24px 32px;
   overflow: hidden;
 `
 
@@ -37,9 +29,19 @@ const Divider = styled.span`
   margin: 0 8px;
 `
 
+const MAX_CACHE_WIDTH = 7680
+
+type WaveEditorProps = {
+  file: AudioFile
+  audioContext: AudioContext
+  onBack: () => void
+  onUpdateFile: (next: AudioFile) => void
+}
+
 export default function WaveEditor({
   file,
   audioContext,
+  onBack,
   onUpdateFile,
 }: WaveEditorProps) {
   const [canvasWidth, setCanvasWidth] = useState(0)
@@ -50,13 +52,14 @@ export default function WaveEditor({
     startSample: null,
     endSample: null,
   })
-  const [peaksVersion, setPeaksVersion] = useState(0)
   const [visiblePeaks, setVisiblePeaks] = useState<VisiblePeaks>({
     visibleMinPerChannel: [],
     visibleMaxPerChannel: [],
   })
-
-  const playback = useAudioPlayback({ audioContext, closeOnUnmount: false })
+  const playback = useAudioPlayback({
+    audioContext,
+    closeOnUnmount: false,
+  })
   const playbackRef = playback.playback
 
   const isSelectingRef = useRef(false)
@@ -74,10 +77,11 @@ export default function WaveEditor({
   const sampleRate = file.audioBuffer.sampleRate
   const totalSamples = file.audioBuffer.getChannelData(0).length
 
-  const peaksCache = useMemo(
-    () => buildPeaksCache(file.audioBuffer, MAX_CACHE_WIDTH),
-    [file.audioBuffer, peaksVersion],
-  )
+  function buildCache() {
+    return buildPeaksCache(file.audioBuffer, MAX_CACHE_WIDTH)
+  }
+
+  const peaksCache = useMemo(buildCache, [file.audioBuffer])
 
   useEffect(() => {
     playbackRef.current.setBuffer(file.audioBuffer)
@@ -110,10 +114,7 @@ export default function WaveEditor({
 
     const visibleSamples = canvasWidth * nextSamplesPerPixel
     const maxStart = Math.max(0, totalSamples - visibleSamples)
-    const clampedViewStart = Math.max(
-      0,
-      Math.min(viewStartSample, maxStart),
-    )
+    const clampedViewStart = Math.max(0, Math.min(viewStartSample, maxStart))
     if (clampedViewStart !== viewStartSample) {
       setViewStartSample(clampedViewStart)
       return
@@ -131,14 +132,25 @@ export default function WaveEditor({
 
     setSamplesPerPixel(nextSamplesPerPixel)
     setVisiblePeaks(peaks)
-  }, [canvasWidth, nChannels, peaksCache, totalSamples, viewStartSample, zoomLevel])
+  }, [
+    canvasWidth,
+    nChannels,
+    peaksCache,
+    totalSamples,
+    viewStartSample,
+    zoomLevel,
+  ])
 
-  const getCursorSample = () => {
+  function getCursorSample() {
     if (!audioBufferRef.current) return null
     return playbackRef.current.getCurrentSample(sampleRate)
   }
 
-  const onClickPlay = () => {
+  function onClickBack() {
+    onBack()
+  }
+
+  function onClickPlay() {
     if (!audioBufferRef.current) return
 
     if (playback.isPlaying) {
@@ -156,7 +168,7 @@ export default function WaveEditor({
     playbackRef.current.play()
   }
 
-  const onClickStop = () => {
+  function onClickStop() {
     if (!audioBufferRef.current) return
     if (playback.isPlaying) {
       playbackRef.current.pause()
@@ -165,7 +177,7 @@ export default function WaveEditor({
     }
   }
 
-  const onClickCanvas = (event: React.MouseEvent<HTMLCanvasElement>) => {
+  function onClickCanvas(event: React.MouseEvent<HTMLCanvasElement>) {
     if (!audioBufferRef.current || event.shiftKey) return
     if (justCompletedSelectionRef.current) {
       justCompletedSelectionRef.current = false
@@ -180,7 +192,7 @@ export default function WaveEditor({
     playbackRef.current.seek(clickedTime)
   }
 
-  const onMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
+  function onMouseDown(event: React.MouseEvent<HTMLCanvasElement>) {
     if (!audioBufferRef.current) return
 
     const clickedSample = Math.floor(
@@ -208,13 +220,13 @@ export default function WaveEditor({
     document.addEventListener('mouseup', onDocumentMouseUp)
   }
 
-  const onMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
+  function onMouseMove(event: React.MouseEvent<HTMLCanvasElement>) {
     if (!isSelectingRef.current) return
     lastMouseXRef.current = event.nativeEvent.offsetX
     updateSelectionAndScroll()
   }
 
-  const onMouseUp = () => {
+  function onMouseUp() {
     if (!isSelectingRef.current) return
     isSelectingRef.current = false
 
@@ -236,7 +248,7 @@ export default function WaveEditor({
     }
   }
 
-  const onDocumentMouseMove = (event: MouseEvent) => {
+  function onDocumentMouseMove(event: MouseEvent) {
     if (!isSelectingRef.current) return
     const rect = canvasRectRef.current
     if (!rect) return
@@ -244,13 +256,13 @@ export default function WaveEditor({
     updateSelectionAndScroll()
   }
 
-  const onDocumentMouseUp = () => {
+  function onDocumentMouseUp() {
     document.removeEventListener('mousemove', onDocumentMouseMove)
     document.removeEventListener('mouseup', onDocumentMouseUp)
     onMouseUp()
   }
 
-  const updateSelectionAndScroll = () => {
+  function updateSelectionAndScroll() {
     if (!isSelectingRef.current || !audioBufferRef.current) return
 
     const width = canvasWidthRef.current
@@ -297,7 +309,8 @@ export default function WaveEditor({
         const maxStart = Math.max(0, total - visibleSamples)
 
         const shouldScrollLeft =
-          lastMouseXRef.current <= scrollMargin && viewStartSampleRef.current > 0
+          lastMouseXRef.current <= scrollMargin &&
+          viewStartSampleRef.current > 0
         const shouldScrollRight =
           lastMouseXRef.current >= width - scrollMargin &&
           viewStartSampleRef.current < maxStart
@@ -323,29 +336,28 @@ export default function WaveEditor({
         setSelection({
           startSample: selectionRef.current.startSample,
           endSample: Math.floor(
-            viewStartSampleRef.current +
-              clampedMouseX * currentSamplesPerPixel,
+            viewStartSampleRef.current + clampedMouseX * currentSamplesPerPixel,
           ),
         })
       }, 16)
     }
   }
 
-  const onWheel = (event: React.WheelEvent<HTMLCanvasElement>) => {
+  function onWheel(event: React.WheelEvent<HTMLCanvasElement>) {
     if (!audioBufferRef.current) return
     event.preventDefault()
-    const delta = event.deltaX !== 0 ? event.deltaX : event.shiftKey ? event.deltaY : 0
+    const delta =
+      event.deltaX !== 0 ? event.deltaX : event.shiftKey ? event.deltaY : 0
     if (delta === 0) return
     const panAmount = delta * samplesPerPixelRef.current * 5
     setViewStartSample((prev) => prev + panAmount)
   }
 
-  const onClickZoomIn = () => {
+  function onClickZoomIn() {
     if (!audioBufferRef.current || canvasWidth <= 0) return
     const playheadSample = playbackRef.current.getCurrentSample(sampleRate)
     const cursorScreenX =
-      (playheadSample - viewStartSampleRef.current) /
-      samplesPerPixelRef.current
+      (playheadSample - viewStartSampleRef.current) / samplesPerPixelRef.current
 
     let nextZoom = zoomLevel * 1.5
     let newSamplesPerPixel = totalSamples / (canvasWidth * nextZoom)
@@ -354,18 +366,16 @@ export default function WaveEditor({
       nextZoom = totalSamples / (canvasWidth * 1)
     }
 
-    const nextViewStart =
-      playheadSample - cursorScreenX * newSamplesPerPixel
+    const nextViewStart = playheadSample - cursorScreenX * newSamplesPerPixel
     setZoomLevel(nextZoom)
     setViewStartSample(nextViewStart)
   }
 
-  const onClickZoomOut = () => {
+  function onClickZoomOut() {
     if (!audioBufferRef.current || canvasWidth <= 0) return
     const playheadSample = playbackRef.current.getCurrentSample(sampleRate)
     const cursorScreenX =
-      (playheadSample - viewStartSampleRef.current) /
-      samplesPerPixelRef.current
+      (playheadSample - viewStartSampleRef.current) / samplesPerPixelRef.current
 
     let nextZoom = Math.max(1, zoomLevel / 1.5)
     let newSamplesPerPixel = totalSamples / (canvasWidth * nextZoom)
@@ -374,19 +384,21 @@ export default function WaveEditor({
       nextZoom = totalSamples / (canvasWidth * 1)
     }
 
-    const nextViewStart =
-      playheadSample - cursorScreenX * newSamplesPerPixel
+    const nextViewStart = playheadSample - cursorScreenX * newSamplesPerPixel
     setZoomLevel(nextZoom)
     setViewStartSample(nextViewStart)
   }
 
-  const onClickZoomFit = () => {
+  function onClickZoomFit() {
     if (!audioBufferRef.current) return
     setZoomLevel(1)
     setViewStartSample(0)
   }
 
-  const performAudioEdit = (editFn: () => AudioBuffer | null) => {
+  function performAudioEdit(
+    editFn: () => AudioBuffer | null,
+    preserveSelection: boolean,
+  ) {
     if (!audioBufferRef.current) return
     if (playback.isPlaying) {
       playbackRef.current.stop()
@@ -400,21 +412,25 @@ export default function WaveEditor({
         duration: result.duration,
       }
       onUpdateFile(nextFile)
-    } else {
-      onUpdateFile({
-        ...file,
-        audioBuffer: audioBufferRef.current,
-        duration: audioBufferRef.current.duration,
-      })
-      setPeaksVersion((prev) => prev + 1)
+      setSelection({ startSample: null, endSample: null })
+      setViewStartSample(0)
+      setZoomLevel(1)
+      return
     }
 
-    setSelection({ startSample: null, endSample: null })
-    setViewStartSample(0)
-    setZoomLevel(1)
+    onUpdateFile({
+      ...file,
+      audioBuffer: audioBufferRef.current,
+      duration: audioBufferRef.current.duration,
+    })
+    if (!preserveSelection) {
+      setSelection({ startSample: null, endSample: null })
+      setViewStartSample(0)
+      setZoomLevel(1)
+    }
   }
 
-  const onClickCrop = () => {
+  function onClickCrop() {
     performAudioEdit(() => {
       const { startSample, endSample } = selectionRef.current
       if (startSample == null || endSample == null) {
@@ -441,10 +457,10 @@ export default function WaveEditor({
       }
 
       return croppedBuffer
-    })
+    }, false)
   }
 
-  const onClickTrim = () => {
+  function onClickTrim() {
     performAudioEdit(() => {
       const { startSample, endSample } = selectionRef.current
       if (startSample == null || endSample == null) {
@@ -477,10 +493,10 @@ export default function WaveEditor({
       }
 
       return trimmedBuffer
-    })
+    }, false)
   }
 
-  const onClickFadeIn = () => {
+  function onClickFadeIn() {
     performAudioEdit(() => {
       const totalLength = audioBufferRef.current.getChannelData(0).length
       let start = 0
@@ -501,10 +517,10 @@ export default function WaveEditor({
       }
 
       return null
-    })
+    }, true)
   }
 
-  const onClickFadeOut = () => {
+  function onClickFadeOut() {
     performAudioEdit(() => {
       const totalLength = audioBufferRef.current.getChannelData(0).length
       let start = 0
@@ -525,10 +541,10 @@ export default function WaveEditor({
       }
 
       return null
-    })
+    }, true)
   }
 
-  const onClickNormalize = () => {
+  function onClickNormalize() {
     performAudioEdit(() => {
       const totalLength = audioBufferRef.current.getChannelData(0).length
       let start = 0
@@ -562,64 +578,112 @@ export default function WaveEditor({
       }
 
       return null
-    })
+    }, true)
   }
 
-  const onClickSelectToStart = () => {
+  function onClickSelectToStart() {
     if (!audioBufferRef.current) return
     const cursorSample = playbackRef.current.getCurrentSample(sampleRate)
     setSelection({ startSample: 0, endSample: cursorSample })
     playbackRef.current.seek(0)
   }
 
-  const onClickSelectToEnd = () => {
+  function onClickSelectToEnd() {
     if (!audioBufferRef.current) return
     const cursorSample = playbackRef.current.getCurrentSample(sampleRate)
     setSelection({ startSample: cursorSample, endSample: totalSamples })
     playbackRef.current.seek(cursorSample / sampleRate)
   }
 
+  function onResizeCanvas(size: { width: number }) {
+    setCanvasWidth(size.width)
+  }
+
   return (
     <>
       <Controls>
-        <button type="button" onClick={onClickPlay}>
-          Play
-        </button>
-        <button type="button" onClick={onClickStop}>
-          {playback.isPlaying ? 'Pause' : 'Stop'}
-        </button>
+        <IconButton
+          type="button"
+          name="Play"
+          aria-label="Play"
+          onClick={onClickPlay}
+        />
+        <IconButton
+          type="button"
+          name={playback.isPlaying ? 'Pause' : 'Stop'}
+          aria-label={playback.isPlaying ? 'Pause' : 'Stop'}
+          onClick={onClickStop}
+        />
         <Divider />
-        <button type="button" onClick={onClickZoomIn}>
-          +
-        </button>
-        <button type="button" onClick={onClickZoomOut}>
-          -
-        </button>
-        <button type="button" onClick={onClickZoomFit}>
-          Fit
-        </button>
-        <button type="button" onClick={onClickSelectToStart}>
-          To Start
-        </button>
-        <button type="button" onClick={onClickSelectToEnd}>
-          To End
-        </button>
+        <IconButton
+          type="button"
+          name="ZoomIn"
+          aria-label="Zoom in"
+          onClick={onClickZoomIn}
+        />
+        <IconButton
+          type="button"
+          name="ZoomOut"
+          aria-label="Zoom out"
+          onClick={onClickZoomOut}
+        />
+        <IconButton
+          type="button"
+          name="ZoomFit"
+          aria-label="Zoom to fit"
+          onClick={onClickZoomFit}
+        />
         <Divider />
-        <button type="button" onClick={onClickCrop}>
-          Crop
-        </button>
-        <button type="button" onClick={onClickTrim}>
-          Trim
-        </button>
-        <button type="button" onClick={onClickFadeIn}>
-          Fade In
-        </button>
-        <button type="button" onClick={onClickFadeOut}>
-          Fade Out
-        </button>
-        <button type="button" onClick={onClickNormalize}>
-          Normalize
-        </button>
+        <IconButton
+          type="button"
+          name="SelectFromStart"
+          aria-label="Select From Start"
+          onClick={onClickSelectToStart}
+        />
+        <IconButton
+          type="button"
+          name="SelectToEnd"
+          aria-label="Select To End"
+          onClick={onClickSelectToEnd}
+        />
+        <Divider />
+        <IconButton
+          type="button"
+          name="Crop"
+          aria-label="Crop"
+          onClick={onClickCrop}
+        />
+        <IconButton
+          type="button"
+          name="Trim"
+          aria-label="Trim"
+          onClick={onClickTrim}
+        />
+        <IconButton
+          type="button"
+          name="FadeIn"
+          aria-label="Fade in"
+          onClick={onClickFadeIn}
+        />
+        <IconButton
+          type="button"
+          name="FadeOut"
+          aria-label="Fade out"
+          onClick={onClickFadeOut}
+        />
+        <IconButton
+          type="button"
+          name="Normalize"
+          aria-label="Normalize"
+          onClick={onClickNormalize}
+        />
+        <IconButton
+          type="button"
+          name="Back"
+          aria-label="Back"
+          onClick={onClickBack}
+          style={{ marginLeft: 'auto' }}
+        />
       </Controls>
       <CanvasContainer>
         <WaveformCanvas
@@ -629,9 +693,7 @@ export default function WaveEditor({
           samplesPerPixel={samplesPerPixel}
           selection={selection}
           getCursorSample={getCursorSample}
-          onResize={({ width }) => {
-            setCanvasWidth(width)
-          }}
+          onResize={onResizeCanvas}
           onClick={onClickCanvas}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}

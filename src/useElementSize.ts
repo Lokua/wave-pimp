@@ -15,7 +15,7 @@ export default function useElementSize<T extends HTMLElement>(
     const el = ref.current
     if (!el) return
 
-    const update = () => {
+    function update() {
       const rect = el.getBoundingClientRect()
       setSize({
         width: Math.max(1, Math.floor(rect.width)),

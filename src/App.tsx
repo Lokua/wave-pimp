@@ -12,6 +12,7 @@ const audioCtx = new AudioContext()
 const Container = styled.div`
   display: flex;
   flex-direction: column;
+  overflow: auto;
   height: 100vh;
   padding: 24px;
   padding-top: 0;
@@ -27,7 +28,6 @@ const Titlebar = styled.div`
   height: 36px;
   text-align: center;
   user-select: none;
-  background: var(--background-color);
 `
 
 const DropArea = styled.div<{ isDragActive: boolean }>`
@@ -41,6 +41,13 @@ const DropArea = styled.div<{ isDragActive: boolean }>`
   background: ${({ isDragActive }) =>
     isDragActive ? 'rgba(0,0,0,0.05)' : 'transparent'};
   transition: background 0.15s;
+`
+
+const Cards = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  justify-content: center;
+  gap: 16px;
 `
 
 export default function App() {
@@ -80,16 +87,18 @@ export default function App() {
     )
   })
 
-  function onClickFile(file: AudioFile) {
+  function onEditFile(file: AudioFile) {
     setView('edit')
     setFile(file)
   }
 
   function updateFile(next: AudioFile) {
     setFile(next)
-    setFiles((prev) =>
-      prev.map((item) => (item.id === next.id ? next : item)),
-    )
+    setFiles((prev) => prev.map((item) => (item.id === next.id ? next : item)))
+  }
+
+  function onClickBack() {
+    setView('list')
   }
 
   return (
@@ -98,25 +107,22 @@ export default function App() {
       {files.length > 0 ? (
         <>
           {view === 'list' ? (
-            <div>
+            <Cards>
               {files.map((file) => (
                 <WaveCard
                   key={file.id}
                   file={file}
                   audioContext={audioCtx}
-                  onClick={() => {
-                    onClickFile(file)
-                  }}
-                >
-                  {file.name}
-                </WaveCard>
+                  onEdit={onEditFile}
+                />
               ))}
-            </div>
+            </Cards>
           ) : (
             file && (
               <WaveEditor
                 file={file}
                 audioContext={audioCtx}
+                onBack={onClickBack}
                 onUpdateFile={updateFile}
               />
             )
