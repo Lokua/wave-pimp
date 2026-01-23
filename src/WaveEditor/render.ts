@@ -46,7 +46,7 @@ export function drawWaveformBase(
 
   if (nChannels === 2) {
     const gutterY = cssHeight / 2
-    ctx.strokeStyle = readCssVar('--separator-color', '#666')
+    ctx.strokeStyle = readCssVar('--separator-color')
     ctx.lineWidth = 1
     ctx.beginPath()
     ctx.moveTo(0, gutterY)
@@ -95,7 +95,7 @@ export function drawCursor(
   const x = (cursorSample - viewStartSample) / samplesPerPixel
   if (x < 0 || x > cssWidth) return
 
-  ctx.strokeStyle = readCssVar('--cursor-color', '#ff6666')
+  ctx.strokeStyle = readCssVar('--cursor-color')
   ctx.lineWidth = 1
   ctx.beginPath()
   ctx.moveTo(x, 0)
@@ -131,7 +131,7 @@ function drawZeroLine(
 
   const centerY = channelTop + channelHeight / 2
 
-  ctx.strokeStyle = readCssVar('--zero-line-color', '#666')
+  ctx.strokeStyle = readCssVar('--zero-line-color')
   ctx.lineWidth = 1
   ctx.beginPath()
   ctx.moveTo(0, centerY)
@@ -169,7 +169,7 @@ function drawSelectionBackground(
     return
   }
 
-  ctx.fillStyle = readCssVar('--selection-color', 'rgba(100, 149, 237, 0.15)')
+  ctx.fillStyle = readCssVar('--selection-color')
   ctx.fillRect(left, 0, right - left, cssHeight)
 }
 
@@ -253,23 +253,50 @@ function paintEnvelopeFill(
     amplitudeScale: number
   },
 ) {
+  const MIN_THICKNESS_PX = 1
+  const halfMinThickness = MIN_THICKNESS_PX / 2
+
+  const len = Math.min(maxs.length, mins.length)
+
   ctx.beginPath()
 
-  for (let i = 0; i < maxs.length; i++) {
+  for (let i = 0; i < len; i++) {
     const x = i + 0.5
-    const y = zeroLineY - maxs[i] * amplitudeScale
-    if (i === 0) ctx.moveTo(x, y)
-    else ctx.lineTo(x, y)
+
+    const max = maxs[i] ?? 0
+    const min = mins[i] ?? 0
+
+    const yMax0 = zeroLineY - max * amplitudeScale
+    const yMin0 = zeroLineY - min * amplitudeScale
+
+    const mid = (yMax0 + yMin0) / 2
+    const half = Math.max(Math.abs(yMax0 - yMin0) / 2, halfMinThickness)
+
+    const yMax = mid - half
+
+    if (i === 0) ctx.moveTo(x, yMax)
+    else ctx.lineTo(x, yMax)
   }
 
-  for (let i = mins.length - 1; i >= 0; i--) {
+  for (let i = len - 1; i >= 0; i--) {
     const x = i + 0.5
-    const y = zeroLineY - mins[i] * amplitudeScale
-    ctx.lineTo(x, y)
+
+    const max = maxs[i] ?? 0
+    const min = mins[i] ?? 0
+
+    const yMax0 = zeroLineY - max * amplitudeScale
+    const yMin0 = zeroLineY - min * amplitudeScale
+
+    const mid = (yMax0 + yMin0) / 2
+    const half = Math.max(Math.abs(yMax0 - yMin0) / 2, halfMinThickness)
+
+    const yMin = mid + half
+
+    ctx.lineTo(x, yMin)
   }
 
   ctx.closePath()
-  ctx.fillStyle = readCssVar('--waveform-color', '#222')
+  ctx.fillStyle = readCssVar('--waveform-color')
   ctx.fill()
 }
 
@@ -301,7 +328,7 @@ function paintPeakLine(
     else ctx.lineTo(x, y)
   }
 
-  ctx.strokeStyle = readCssVar('--waveform-color', '#222')
+  ctx.strokeStyle = readCssVar('--waveform-color')
   ctx.lineWidth = 1
   ctx.stroke()
 }
@@ -334,14 +361,11 @@ function paintDotLine(
     else ctx.lineTo(x, y)
   }
 
-  ctx.strokeStyle = readCssVar('--waveform-color', '#222')
+  ctx.strokeStyle = readCssVar('--waveform-color')
   ctx.lineWidth = 1
   ctx.stroke()
 }
 
-function readCssVar(name: string, fallback: string) {
-  const value = getComputedStyle(document.documentElement).getPropertyValue(
-    name,
-  )
-  return value.trim() || fallback
+function readCssVar(name: string) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name)
 }
