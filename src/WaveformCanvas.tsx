@@ -4,25 +4,6 @@ import type { SelectionRange, VisiblePeaks } from './types'
 import { drawCursor, drawWaveformBase } from './waveformRender'
 import useElementSize from './useElementSize'
 
-type CtxRef = { current: CanvasRenderingContext2D | null }
-
-type WaveformCanvasProps = {
-  nChannels: number
-  visiblePeaks: VisiblePeaks
-  viewStartSample: number
-  samplesPerPixel: number
-  selection?: SelectionRange
-  getCursorSample?: () => number | null
-  height?: number
-  onResize?: (size: { width: number; height: number }) => void
-  onClick?: (event: React.MouseEvent<HTMLCanvasElement>) => void
-  onMouseDown?: (event: React.MouseEvent<HTMLCanvasElement>) => void
-  onMouseMove?: (event: React.MouseEvent<HTMLCanvasElement>) => void
-  onMouseUp?: (event: React.MouseEvent<HTMLCanvasElement>) => void
-  onMouseLeave?: (event: React.MouseEvent<HTMLCanvasElement>) => void
-  onWheel?: (event: React.WheelEvent<HTMLCanvasElement>) => void
-}
-
 const CanvasWrap = styled.div<{ height?: number }>`
   position: relative;
   width: 100%;
@@ -48,12 +29,33 @@ const CursorCanvas = styled.canvas`
   pointer-events: none;
 `
 
+type CtxRef = { current: CanvasRenderingContext2D | null }
+
+type WaveformCanvasProps = {
+  nChannels: number
+  visiblePeaks: VisiblePeaks
+  viewStartSample: number
+  samplesPerPixel: number
+  selection?: SelectionRange
+  canvasRevision: number
+  getCursorSample?: () => number | null
+  height?: number
+  onResize?: (size: { width: number; height: number }) => void
+  onClick?: (event: React.MouseEvent<HTMLCanvasElement>) => void
+  onMouseDown?: (event: React.MouseEvent<HTMLCanvasElement>) => void
+  onMouseMove?: (event: React.MouseEvent<HTMLCanvasElement>) => void
+  onMouseUp?: (event: React.MouseEvent<HTMLCanvasElement>) => void
+  onMouseLeave?: (event: React.MouseEvent<HTMLCanvasElement>) => void
+  onWheel?: (event: React.WheelEvent<HTMLCanvasElement>) => void
+}
+
 export default function WaveformCanvas({
   nChannels,
   visiblePeaks,
   viewStartSample,
   samplesPerPixel,
   selection,
+  canvasRevision,
   getCursorSample,
   height,
   onResize,
@@ -117,6 +119,7 @@ export default function WaveformCanvas({
       selection,
     })
   }, [
+    canvasRevision,
     cssHeight,
     nChannels,
     samplesPerPixel,
@@ -146,7 +149,7 @@ export default function WaveformCanvas({
 
     frame = requestAnimationFrame(draw)
     return () => cancelAnimationFrame(frame)
-  }, [cssHeight, getCursorSample, samplesPerPixel, viewStartSample, width])
+  }, [cssHeight, getCursorSample, width, samplesPerPixel, viewStartSample])
 
   return (
     <CanvasWrap ref={wrapRef} height={height}>

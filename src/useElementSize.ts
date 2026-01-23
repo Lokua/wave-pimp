@@ -7,7 +7,7 @@ type Size = {
 }
 
 export default function useElementSize<T extends HTMLElement>(
-  ref: RefObject<T>,
+  ref: RefObject<T | null>,
 ): Size {
   const [size, setSize] = useState<Size>({ width: 0, height: 0 })
 
