@@ -123,6 +123,7 @@ export default function SettingsModal({
             type="button"
             name="Close"
             aria-label="Close settings"
+            title="Close settings"
             onClick={onClose}
           />
         </ModalHeader>

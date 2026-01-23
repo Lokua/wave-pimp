@@ -3,10 +3,10 @@ import { useEffect, useState } from 'react'
 
 import { AudioFile, Settings } from './types'
 import useDropArea from './useDropArea'
-import WaveCard from './WaveCard'
 import WaveEditor from './WaveEditor'
 import { parseBlob } from 'music-metadata'
 import SettingsModal from './SettingsModal'
+import WaveGrid from './WaveGrid'
 
 const audioCtx = new AudioContext()
 
@@ -55,17 +55,11 @@ const DropArea = styled.div<{ isDragActive: boolean }>`
   transition: background 0.15s;
 `
 
-const Cards = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  justify-content: center;
-  gap: 16px;
-`
-
 export default function App() {
   const [view, setView] = useState('list')
   const [file, setFile] = useState<AudioFile | null>(null)
   const [files, setFiles] = useState<AudioFile[]>([])
+  const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [settings, setSettings] = useState<Settings>({
     sampleRate: 48000,
@@ -121,6 +115,16 @@ export default function App() {
   }
 
   useEffect(() => {
+    if (files.length === 0) {
+      setSelectedFileId(null)
+      return
+    }
+    if (selectedFileId && !files.some((item) => item.id === selectedFileId)) {
+      setSelectedFileId(null)
+    }
+  }, [files, selectedFileId])
+
+  useEffect(() => {
     function openSettings() {
       setIsSettingsOpen(true)
     }
@@ -131,23 +135,40 @@ export default function App() {
     }
   }, [])
 
+  useEffect(() => {
+    if (view !== 'list') return
+    function onPointerDown(event: PointerEvent) {
+      const path = event.composedPath()
+      const clickedCard = path.some((item) => {
+        if (!(item instanceof HTMLElement)) return false
+        return item.dataset.waveCard === 'true'
+      })
+      if (clickedCard) return
+      setSelectedFileId(null)
+    }
+
+    document.addEventListener('pointerdown', onPointerDown, true)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+    }
+  }, [view])
+
   return (
     <Container>
       <Titlebar />
       <Content>
-        {files.length > 0 ? (
+        {files.length ? (
           <>
             {view === 'list' ? (
-              <Cards>
-                {files.map((file) => (
-                  <WaveCard
-                    key={file.id}
-                    file={file}
-                    audioContext={audioCtx}
-                    onEdit={onEditFile}
-                  />
-                ))}
-              </Cards>
+              <WaveGrid
+                files={files}
+                selectedId={selectedFileId}
+                settings={settings}
+                audioContext={audioCtx}
+                onSelect={setSelectedFileId}
+                onEdit={onEditFile}
+                onUpdateFile={updateFile}
+              />
             ) : (
               file && (
                 <WaveEditor

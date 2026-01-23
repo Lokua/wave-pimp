@@ -1,21 +1,27 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
 import styled from '@emotion/styled'
 
-import type { AudioFile, VisiblePeaks } from './types'
+import type { AudioFile, Settings, VisiblePeaks } from './types'
 import { formatDuration, formatSize } from './util'
 import WaveformCanvas from './WaveformCanvas'
 import useAudioPlayback from './useAudioPlayback'
 import { buildPeaksCache, getVisiblePeaksFromCache } from './waveformPeaks'
 import IconButton from './IconButton'
+import { encodeWavForSettings } from './wavExport'
+import Toast from './Toast'
+import useToast from './useToast'
 
-const Card = styled.article`
+const Card = styled.article<{ isSelected: boolean }>`
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
   margin: 0 auto;
   padding: 16px;
   gap: 12px;
-  border: 1px solid var(--border-color);
+  border: 1px solid
+    ${({ isSelected }) =>
+      isSelected ? 'var(--text-color)' : 'var(--border-color)'};
   border-radius: 4px;
   background: var(--bg-controls);
 `
@@ -28,8 +34,47 @@ const Title = styled.h3`
 
 const Actions = styled.div`
   display: flex;
-  /* margin-left: auto; */
   gap: 8px;
+`
+
+const RenameOverlay = styled.div`
+  position: absolute;
+  inset: 12px;
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 6px;
+  background: var(--bg-controls);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.18);
+  z-index: 2;
+`
+
+const RenameRow = styled.div`
+  display: flex;
+  gap: 8px;
+  align-items: center;
+`
+
+const RenameHeader = styled.div`
+  position: absolute;
+  top: 8px;
+  right: 8px;
+`
+
+const CloseButton = styled(IconButton)`
+  /* padding: 2px; */
+`
+
+const RenameInput = styled.input`
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-main);
+  color: var(--text-color);
+  font-size: 13px;
 `
 
 const MetaGrid = styled.dl`
@@ -57,24 +102,43 @@ const MetaValue = styled.dd`
 `
 
 type WaveCardProps = {
+  id?: string
   file: AudioFile
+  settings: Settings
   audioContext: AudioContext
+  isSelected: boolean
+  shouldRename: boolean
+  renameSignal: number
+  onSelect: () => void
   onEdit: (file: AudioFile) => void
+  onUpdateFile: (next: AudioFile) => void
 }
 
 const MAX_CACHE_WIDTH = 7680
 
-export default function WaveCard({
-  file,
-  audioContext,
-  onEdit,
-}: WaveCardProps) {
+const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
+  {
+    id,
+    file,
+    settings,
+    audioContext,
+    isSelected,
+    shouldRename,
+    renameSignal,
+    onSelect,
+    onEdit,
+    onUpdateFile,
+  },
+  ref,
+) {
   const [canvasWidth, setCanvasWidth] = useState(0)
   const [samplesPerPixel, setSamplesPerPixel] = useState(1)
   const [visiblePeaks, setVisiblePeaks] = useState<VisiblePeaks>({
     visibleMinPerChannel: [],
     visibleMaxPerChannel: [],
   })
+  const [isRenaming, setIsRenaming] = useState(false)
+  const [draftName, setDraftName] = useState(file.name)
 
   const playback = useAudioPlayback({
     audioContext,
@@ -82,6 +146,9 @@ export default function WaveCard({
   })
   const playbackRef = playback.playback
   const samplesPerPixelRef = useRef(samplesPerPixel)
+  const renameInputRef = useRef<HTMLInputElement | null>(null)
+  const renameSignalRef = useRef(renameSignal)
+  const { message: toastMessage, showToast } = useToast()
 
   const nChannels = 1
   const sampleRate = file.audioBuffer.sampleRate
@@ -96,6 +163,32 @@ export default function WaveCard({
   useEffect(() => {
     playbackRef.current.setBuffer(file.audioBuffer)
   }, [file.audioBuffer, playbackRef])
+
+  useEffect(() => {
+    if (!isRenaming) {
+      setDraftName(file.name)
+    }
+  }, [file.name, isRenaming])
+
+  useEffect(() => {
+    if (!isRenaming) return
+    setDraftName(file.name)
+    const raf = requestAnimationFrame(() => {
+      renameInputRef.current?.focus()
+      renameInputRef.current?.select()
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [file.name, isRenaming])
+
+  useEffect(() => {
+    if (!shouldRename) {
+      renameSignalRef.current = renameSignal
+      return
+    }
+    if (renameSignalRef.current === renameSignal) return
+    renameSignalRef.current = renameSignal
+    setIsRenaming(true)
+  }, [renameSignal, shouldRename])
 
   useEffect(() => {
     samplesPerPixelRef.current = samplesPerPixel
@@ -136,7 +229,9 @@ export default function WaveCard({
   function onClickPlay() {
     if (playback.isPlaying) {
       playbackRef.current.stop()
-      playbackRef.current.play({ fromSeconds: 0 })
+      playbackRef.current.play({
+        fromSeconds: 0,
+      })
       return
     }
 
@@ -155,30 +250,94 @@ export default function WaveCard({
     onEdit(file)
   }
 
+  function ensureWavExtension(name: string) {
+    return name.toLowerCase().endsWith('.wav') ? name : `${name}.wav`
+  }
+
+  function getFileNameFromPath(filePath: string) {
+    return filePath.split(/[\\/]/).pop() ?? filePath
+  }
+
+  function replaceFileNameInPath(filePath: string, nextName: string) {
+    const parts = filePath.split(/[\\/]/)
+    parts[parts.length - 1] = nextName
+    return parts.join(filePath.includes('\\') ? '\\' : '/')
+  }
+
+  async function saveWav() {
+    const trimmedName = draftName.trim()
+    const desiredName = ensureWavExtension(trimmedName || file.name)
+    const bytes = await encodeWavForSettings(file.audioBuffer, settings)
+    const defaultPath = file.filePath
+      ? replaceFileNameInPath(file.filePath, desiredName)
+      : desiredName
+    const result = (await window.electron.invoke('save-wav', {
+      bytes,
+      path: undefined,
+      defaultPath,
+    })) as { canceled?: boolean; path?: string }
+
+    if (!result || result.canceled || !result.path) return
+
+    const nextName = getFileNameFromPath(result.path)
+    onUpdateFile({
+      ...file,
+      filePath: result.path,
+      name: nextName,
+    })
+    setDraftName(nextName)
+    setIsRenaming(false)
+    showToast('Saved As')
+  }
+
+  function onDoubleClickTitle(event: React.MouseEvent) {
+    event.stopPropagation()
+    setIsRenaming(true)
+  }
+
+  function onRenameKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    event.stopPropagation()
+    if (event.key === 'Escape') {
+      setIsRenaming(false)
+      setDraftName(file.name)
+    }
+  }
+
   function onResizeCanvas(size: { width: number }) {
     setCanvasWidth(size.width)
   }
 
   return (
-    <Card>
-      <Title>{file.name}</Title>
+    <Card
+      id={id}
+      isSelected={isSelected}
+      role="option"
+      aria-selected={isSelected}
+      onClick={onSelect}
+      ref={ref}
+      data-wave-card="true"
+    >
+      <Title onDoubleClick={onDoubleClickTitle}>{file.name}</Title>
       <Actions>
         <IconButton
           type="button"
           name="Play"
           aria-label="Play"
+          title="Play"
           onClick={onClickPlay}
         />
         <IconButton
           type="button"
           name={playback.isPlaying ? 'Pause' : 'Stop'}
           aria-label={playback.isPlaying ? 'Pause' : 'Stop'}
+          title={playback.isPlaying ? 'Pause' : 'Stop'}
           onClick={onClickStop}
         />
         <IconButton
           type="button"
           name="Edit"
           aria-label="Edit"
+          title="Open editor (Enter)"
           onClick={onClickEdit}
           style={{ marginLeft: 'auto' }}
         />
@@ -219,6 +378,45 @@ export default function WaveCard({
           <MetaValue>{file.type.replace('audio/', '')}</MetaValue>
         </MetaItem>
       </MetaGrid>
+      {isRenaming ? (
+        <RenameOverlay
+          onClick={(event) => {
+            event.stopPropagation()
+          }}
+        >
+          <RenameHeader>
+            <CloseButton
+              type="button"
+              name="Close"
+              aria-label="Close"
+              title="Cancel rename (Esc)"
+              onClick={() => {
+                setIsRenaming(false)
+                setDraftName(file.name)
+              }}
+            />
+          </RenameHeader>
+          <RenameRow>
+            <RenameInput
+              ref={renameInputRef}
+              value={draftName}
+              onChange={(event) => setDraftName(event.target.value)}
+              onKeyDown={onRenameKeyDown}
+              aria-label="File name"
+            />
+            <IconButton
+              type="button"
+              name="SaveAs"
+              aria-label="Save As"
+              title="Save As"
+              onClick={saveWav}
+            />
+          </RenameRow>
+        </RenameOverlay>
+      ) : null}
+      <Toast message={toastMessage} />
     </Card>
   )
-}
+})
+
+export default WaveCard

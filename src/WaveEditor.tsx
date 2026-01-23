@@ -6,7 +6,9 @@ import WaveformCanvas from './WaveformCanvas'
 import IconButton from './IconButton'
 import useAudioPlayback from './useAudioPlayback'
 import { buildPeaksCache, getVisiblePeaksFromCache } from './waveformPeaks'
-import encodeWav from './encodeWav'
+import { encodeWavForSettings } from './wavExport'
+import Toast from './Toast'
+import useToast from './useToast'
 
 const Controls = styled.div`
   padding: 0 8px;
@@ -28,21 +30,6 @@ const Divider = styled.span`
   width: 1px;
   background: var(--separator-color);
   margin: 0 8px;
-`
-
-const Toast = styled.div`
-  position: fixed;
-  right: 20px;
-  top: 20px;
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: var(--bg-controls);
-  border: 1px solid var(--border-color);
-  color: var(--text-color);
-  font-size: 13px;
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.18);
-  pointer-events: none;
-  z-index: 20;
 `
 
 const MAX_CACHE_WIDTH = 7680
@@ -74,7 +61,7 @@ export default function WaveEditor({
     visibleMinPerChannel: [],
     visibleMaxPerChannel: [],
   })
-  const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const { message: toastMessage, showToast } = useToast()
   const playback = useAudioPlayback({
     audioContext,
     closeOnUnmount: false,
@@ -91,7 +78,6 @@ export default function WaveEditor({
   const canvasWidthRef = useRef(canvasWidth)
   const canvasRectRef = useRef<DOMRect | null>(null)
   const audioBufferRef = useRef(file.audioBuffer)
-  const toastTimeoutRef = useRef<number | null>(null)
 
   const nChannels = file.audioBuffer.numberOfChannels
   const sampleRate = file.audioBuffer.sampleRate
@@ -128,12 +114,16 @@ export default function WaveEditor({
   }, [canvasWidth])
 
   useEffect(() => {
-    return () => {
-      if (toastTimeoutRef.current) {
-        window.clearTimeout(toastTimeoutRef.current)
-      }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return
+      onBack()
     }
-  }, [])
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [onBack])
 
   useEffect(() => {
     if (canvasWidth <= 0) return
@@ -174,40 +164,12 @@ export default function WaveEditor({
     return playbackRef.current.getCurrentSample(sampleRate)
   }
 
-  function showToast(message: string) {
-    setToastMessage(message)
-    if (toastTimeoutRef.current) {
-      window.clearTimeout(toastTimeoutRef.current)
-    }
-    toastTimeoutRef.current = window.setTimeout(() => {
-      setToastMessage(null)
-    }, 2000)
-  }
-
   function ensureWavExtension(name: string) {
     return name.toLowerCase().endsWith('.wav') ? name : `${name}.wav`
   }
 
   function getFileNameFromPath(filePath: string) {
     return filePath.split(/[\\/]/).pop() ?? filePath
-  }
-
-  async function getBufferForSave() {
-    if (!audioBufferRef.current) return null
-    const sourceBuffer = audioBufferRef.current
-    if (sourceBuffer.sampleRate === settings.sampleRate) return sourceBuffer
-
-    const targetLength = Math.ceil(sourceBuffer.duration * settings.sampleRate)
-    const offlineContext = new OfflineAudioContext(
-      sourceBuffer.numberOfChannels,
-      targetLength,
-      settings.sampleRate,
-    )
-    const source = offlineContext.createBufferSource()
-    source.buffer = sourceBuffer
-    source.connect(offlineContext.destination)
-    source.start(0)
-    return await offlineContext.startRendering()
   }
 
   async function saveWav({
@@ -217,10 +179,11 @@ export default function WaveEditor({
     forceDialog: boolean
     toastLabel: string
   }) {
-    const bufferToSave = await getBufferForSave()
-    if (!bufferToSave) return
-
-    const bytes = encodeWav(bufferToSave, settings.bitDepth)
+    if (!audioBufferRef.current) return
+    const bytes = await encodeWavForSettings(
+      audioBufferRef.current,
+      settings,
+    )
     const fallbackName = ensureWavExtension(file.name)
     const defaultPath = file.filePath ?? fallbackName
 
@@ -740,12 +703,14 @@ export default function WaveEditor({
           type="button"
           name="Play"
           aria-label="Play"
+          title="Play"
           onClick={onClickPlay}
         />
         <IconButton
           type="button"
           name={playback.isPlaying ? 'Pause' : 'Stop'}
           aria-label={playback.isPlaying ? 'Pause' : 'Stop'}
+          title={playback.isPlaying ? 'Pause' : 'Stop'}
           onClick={onClickStop}
         />
         <Divider />
@@ -753,18 +718,21 @@ export default function WaveEditor({
           type="button"
           name="ZoomIn"
           aria-label="Zoom in"
+          title="Zoom in"
           onClick={onClickZoomIn}
         />
         <IconButton
           type="button"
           name="ZoomOut"
           aria-label="Zoom out"
+          title="Zoom out"
           onClick={onClickZoomOut}
         />
         <IconButton
           type="button"
           name="ZoomFit"
           aria-label="Zoom to fit"
+          title="Zoom to fit"
           onClick={onClickZoomFit}
         />
         <Divider />
@@ -772,12 +740,14 @@ export default function WaveEditor({
           type="button"
           name="SelectFromStart"
           aria-label="Select From Start"
+          title="Select from start"
           onClick={onClickSelectToStart}
         />
         <IconButton
           type="button"
           name="SelectToEnd"
           aria-label="Select To End"
+          title="Select to end"
           onClick={onClickSelectToEnd}
         />
         <Divider />
@@ -785,30 +755,35 @@ export default function WaveEditor({
           type="button"
           name="Crop"
           aria-label="Crop"
+          title="Crop"
           onClick={onClickCrop}
         />
         <IconButton
           type="button"
           name="Trim"
           aria-label="Trim"
+          title="Trim"
           onClick={onClickTrim}
         />
         <IconButton
           type="button"
           name="FadeIn"
           aria-label="Fade in"
+          title="Fade in"
           onClick={onClickFadeIn}
         />
         <IconButton
           type="button"
           name="FadeOut"
           aria-label="Fade out"
+          title="Fade out"
           onClick={onClickFadeOut}
         />
         <IconButton
           type="button"
           name="Normalize"
           aria-label="Normalize"
+          title="Normalize"
           onClick={onClickNormalize}
         />
         <Divider />
@@ -816,18 +791,21 @@ export default function WaveEditor({
           type="button"
           name="Save"
           aria-label="Save"
+          title="Save"
           onClick={onClickSave}
         />
         <IconButton
           type="button"
           name="SaveAs"
           aria-label="Save As"
+          title="Save As"
           onClick={onClickSaveAs}
         />
         <IconButton
           type="button"
           name="Back"
           aria-label="Back"
+          title="Back to list (Esc)"
           onClick={onBack}
           style={{ marginLeft: 'auto' }}
         />
@@ -849,11 +827,7 @@ export default function WaveEditor({
           onWheel={onWheel}
         />
       </CanvasContainer>
-      {toastMessage ? (
-        <Toast role="status" aria-live="polite">
-          {toastMessage}
-        </Toast>
-      ) : null}
+      <Toast message={toastMessage} />
     </>
   )
 }
