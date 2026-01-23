@@ -141,11 +141,10 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
   const [isRenaming, setIsRenaming] = useState(false)
   const [draftName, setDraftName] = useState(file.name)
 
-  const playback = useAudioPlayback({
+  const { playback: playbackRef, ...playbackState } = useAudioPlayback({
     audioContext,
-    closeOnUnmount: false,
+    audioBuffer: file.audioBuffer,
   })
-  const playbackRef = playback.playback
   const samplesPerPixelRef = useRef(samplesPerPixel)
   const renameInputRef = useRef<HTMLInputElement | null>(null)
   const renameSignalRef = useRef(renameSignal)
@@ -162,6 +161,7 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
   const peaksCache = useMemo(buildCache, [file])
 
   useEffect(() => {
+    playbackRef.current.stop()
     playbackRef.current.setBuffer(file.audioBuffer)
   }, [file.audioBuffer, playbackRef])
 
@@ -228,7 +228,7 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
   }
 
   function onClickPlay() {
-    if (playback.isPlaying) {
+    if (playbackState.isPlaying) {
       playbackRef.current.stop()
       playbackRef.current.play({
         fromSeconds: 0,
@@ -240,7 +240,7 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
   }
 
   function onClickStop() {
-    if (playback.isPlaying) {
+    if (playbackState.isPlaying) {
       playbackRef.current.pause()
     } else {
       playbackRef.current.stop()
@@ -329,9 +329,9 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
         />
         <IconButton
           type="button"
-          name={playback.isPlaying ? 'Pause' : 'Stop'}
-          aria-label={playback.isPlaying ? 'Pause' : 'Stop'}
-          title={playback.isPlaying ? 'Pause' : 'Stop'}
+          name={playbackState.isPlaying ? 'Pause' : 'Stop'}
+          aria-label={playbackState.isPlaying ? 'Pause' : 'Stop'}
+          title={playbackState.isPlaying ? 'Pause' : 'Stop'}
           onClick={onClickStop}
         />
         <IconButton
@@ -348,6 +348,7 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
         visiblePeaks={visiblePeaks}
         viewStartSample={0}
         samplesPerPixel={samplesPerPixel}
+        canvasRevision={0}
         getCursorSample={getCursorSample}
         height={120}
         onResize={onResizeCanvas}

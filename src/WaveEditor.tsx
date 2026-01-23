@@ -51,11 +51,10 @@ export default function WaveEditor({
 }: WaveEditorProps) {
   const [canvasRevision, setCanvasRevision] = useState(0)
   const { message: toastMessage, showToast } = useToast()
-  const playback = useAudioPlayback({
+  const { playback: playbackRef, ...playbackState } = useAudioPlayback({
     audioContext,
-    closeOnUnmount: false,
+    audioBuffer: file.audioBuffer,
   })
-  const playbackRef = playback.playback
 
   const isSelectingRef = useRef(false)
   const autoScrollIntervalRef = useRef<number | null>(null)
@@ -69,20 +68,21 @@ export default function WaveEditor({
     startSample: null,
     endSample: null,
   })
+  const preserveSelectionOnNextBufferRef = useRef(false)
   const visiblePeaksRef = useRef<VisiblePeaks>({
     visibleMinPerChannel: [],
     visibleMaxPerChannel: [],
   })
   const canvasRectRef = useRef<DOMRect | null>(null)
-  const audioBufferRef = useRef(file.audioBuffer)
+  const audioBuffer = file.audioBuffer
 
-  const nChannels = file.audioBuffer.numberOfChannels
-  const sampleRate = file.audioBuffer.sampleRate
-  const totalSamples = file.audioBuffer.getChannelData(0).length
+  const nChannels = audioBuffer.numberOfChannels
+  const sampleRate = audioBuffer.sampleRate
+  const totalSamples = audioBuffer.getChannelData(0).length
 
   const peaksCache = useMemo(
-    () => buildPeaksCache(file.audioBuffer, MAX_CACHE_WIDTH),
-    [file.audioBuffer],
+    () => buildPeaksCache(audioBuffer, MAX_CACHE_WIDTH),
+    [audioBuffer],
   )
 
   function recalculateVisiblePeaks() {
@@ -126,14 +126,18 @@ export default function WaveEditor({
   }, [canvasRevision])
 
   useEffect(() => {
-    playbackRef.current.setBuffer(file.audioBuffer)
-    audioBufferRef.current = file.audioBuffer
-    zoomLevelRef.current = 1
-    viewStartSampleRef.current = 0
-    selectionRef.current = { startSample: null, endSample: null }
+    const preserveSelection = preserveSelectionOnNextBufferRef.current
+    preserveSelectionOnNextBufferRef.current = false
+    playbackRef.current.stop()
+    playbackRef.current.setBuffer(audioBuffer)
+    if (!preserveSelection) {
+      zoomLevelRef.current = 1
+      viewStartSampleRef.current = 0
+      selectionRef.current = { startSample: null, endSample: null }
+    }
     recalculateVisiblePeaks()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file.audioBuffer])
+  }, [audioBuffer])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -153,7 +157,6 @@ export default function WaveEditor({
   }
 
   function getCursorSample() {
-    if (!audioBufferRef.current) return null
     return playbackRef.current.getCurrentSample(sampleRate)
   }
 
@@ -172,8 +175,7 @@ export default function WaveEditor({
     forceDialog: boolean
     toastLabel: string
   }) {
-    if (!audioBufferRef.current) return
-    const bytes = await encodeWavForSettings(audioBufferRef.current, settings)
+    const bytes = await encodeWavForSettings(audioBuffer, settings)
     const fallbackName = ensureWavExtension(file.name)
     const defaultPath = file.filePath ?? fallbackName
 
@@ -198,9 +200,7 @@ export default function WaveEditor({
   }
 
   function onClickPlay() {
-    if (!audioBufferRef.current) return
-
-    if (playback.isPlaying) {
+    if (playbackState.isPlaying) {
       playbackRef.current.stop()
       const { startSample, endSample } = selectionRef.current
       if (startSample != null && endSample != null) {
@@ -216,8 +216,7 @@ export default function WaveEditor({
   }
 
   function onClickStop() {
-    if (!audioBufferRef.current) return
-    if (playback.isPlaying) {
+    if (playbackState.isPlaying) {
       playbackRef.current.pause()
     } else {
       playbackRef.current.stop()
@@ -225,7 +224,7 @@ export default function WaveEditor({
   }
 
   function onClickCanvas(event: React.MouseEvent<HTMLCanvasElement>) {
-    if (!audioBufferRef.current || event.shiftKey) return
+    if (event.shiftKey) return
     if (justCompletedSelectionRef.current) {
       justCompletedSelectionRef.current = false
       return
@@ -240,8 +239,6 @@ export default function WaveEditor({
   }
 
   function onMouseDown(event: React.MouseEvent<HTMLCanvasElement>) {
-    if (!audioBufferRef.current) return
-
     const clickedSample = Math.floor(
       viewStartSampleRef.current +
         event.nativeEvent.offsetX * samplesPerPixelRef.current,
@@ -310,11 +307,11 @@ export default function WaveEditor({
   }
 
   function updateSelectionAndScroll() {
-    if (!isSelectingRef.current || !audioBufferRef.current) return
+    if (!isSelectingRef.current) return
 
     const width = canvasWidthRef.current
     const samplesPerPixelValue = samplesPerPixelRef.current
-    const total = audioBufferRef.current.getChannelData(0).length
+    const total = audioBuffer.getChannelData(0).length
     const visibleSamples = width * samplesPerPixelValue
     const maxStart = Math.max(0, total - visibleSamples)
 
@@ -351,7 +348,7 @@ export default function WaveEditor({
         const currentSamplesPerPixel = samplesPerPixelRef.current
         const scrollSpeed = currentSamplesPerPixel * 10
         const width = canvasWidthRef.current
-        const total = audioBufferRef.current?.getChannelData(0).length ?? 0
+        const total = audioBuffer.getChannelData(0).length
         const visibleSamples = width * currentSamplesPerPixel
         const maxStart = Math.max(0, total - visibleSamples)
 
@@ -399,7 +396,6 @@ export default function WaveEditor({
   }
 
   function onWheel(event: React.WheelEvent<HTMLCanvasElement>) {
-    if (!audioBufferRef.current) return
     const delta =
       Math.abs(event.deltaX) > Math.abs(event.deltaY)
         ? event.deltaX
@@ -424,7 +420,7 @@ export default function WaveEditor({
   }
 
   function onClickZoomIn() {
-    if (!audioBufferRef.current || canvasWidthRef.current <= 0) return
+    if (canvasWidthRef.current <= 0) return
     const playheadSample = playbackRef.current.getCurrentSample(sampleRate)
     const cursorScreenX =
       (playheadSample - viewStartSampleRef.current) / samplesPerPixelRef.current
@@ -443,7 +439,7 @@ export default function WaveEditor({
   }
 
   function onClickZoomOut() {
-    if (!audioBufferRef.current || canvasWidthRef.current <= 0) return
+    if (canvasWidthRef.current <= 0) return
     const playheadSample = playbackRef.current.getCurrentSample(sampleRate)
     const cursorScreenX =
       (playheadSample - viewStartSampleRef.current) / samplesPerPixelRef.current
@@ -462,7 +458,6 @@ export default function WaveEditor({
   }
 
   function onClickZoomFit() {
-    if (!audioBufferRef.current) return
     zoomLevelRef.current = 1
     viewStartSampleRef.current = 0
     recalculateVisiblePeaks()
@@ -472,8 +467,7 @@ export default function WaveEditor({
     editFn: () => AudioBuffer | null,
     preserveSelection: boolean,
   ) {
-    if (!audioBufferRef.current) return
-    if (playback.isPlaying) {
+    if (playbackState.isPlaying) {
       playbackRef.current.stop()
     }
 
@@ -484,7 +478,7 @@ export default function WaveEditor({
         audioBuffer: result,
         duration: result.duration,
       }
-      audioBufferRef.current = result
+      playbackRef.current.setBuffer(result)
       onUpdateFile(nextFile)
       updateSelection({ startSample: null, endSample: null })
       viewStartSampleRef.current = 0
@@ -493,7 +487,8 @@ export default function WaveEditor({
       return
     }
 
-    const sourceBuffer = audioBufferRef.current
+    preserveSelectionOnNextBufferRef.current = preserveSelection
+    const sourceBuffer = audioBuffer
     const nextBuffer = audioContext.createBuffer(
       sourceBuffer.numberOfChannels,
       sourceBuffer.length,
@@ -502,7 +497,7 @@ export default function WaveEditor({
     for (let ch = 0; ch < sourceBuffer.numberOfChannels; ch++) {
       nextBuffer.copyToChannel(sourceBuffer.getChannelData(ch), ch)
     }
-    audioBufferRef.current = nextBuffer
+    playbackRef.current.setBuffer(nextBuffer)
     onUpdateFile({
       ...file,
       audioBuffer: nextBuffer,
@@ -537,7 +532,7 @@ export default function WaveEditor({
       )
 
       for (let ch = 0; ch < nChannels; ch++) {
-        const originalData = audioBufferRef.current.getChannelData(ch)
+        const originalData = audioBuffer.getChannelData(ch)
         const croppedData = croppedBuffer.getChannelData(ch)
         for (let i = 0; i < croppedLength; i++) {
           croppedData[i] = originalData[start + i]
@@ -558,7 +553,7 @@ export default function WaveEditor({
 
       const start = Math.min(startSample, endSample)
       const end = Math.max(startSample, endSample)
-      const originalLength = audioBufferRef.current.getChannelData(0).length
+      const originalLength = audioBuffer.getChannelData(0).length
       const trimmedLength = originalLength - (end - start)
 
       const trimmedBuffer = audioContext.createBuffer(
@@ -568,7 +563,7 @@ export default function WaveEditor({
       )
 
       for (let ch = 0; ch < nChannels; ch++) {
-        const originalData = audioBufferRef.current.getChannelData(ch)
+        const originalData = audioBuffer.getChannelData(ch)
         const trimmedData = trimmedBuffer.getChannelData(ch)
 
         for (let i = 0; i < start; i++) {
@@ -586,7 +581,7 @@ export default function WaveEditor({
 
   function onClickFadeIn() {
     performAudioEdit(() => {
-      const totalLength = audioBufferRef.current.getChannelData(0).length
+      const totalLength = audioBuffer.getChannelData(0).length
       let start = 0
       let end = totalLength
       const { startSample, endSample } = selectionRef.current
@@ -597,7 +592,7 @@ export default function WaveEditor({
 
       const fadeLength = end - start
       for (let ch = 0; ch < nChannels; ch++) {
-        const channelData = audioBufferRef.current.getChannelData(ch)
+        const channelData = audioBuffer.getChannelData(ch)
         for (let i = 0; i < fadeLength; i++) {
           const gain = i / fadeLength
           channelData[start + i] *= gain
@@ -610,7 +605,7 @@ export default function WaveEditor({
 
   function onClickFadeOut() {
     performAudioEdit(() => {
-      const totalLength = audioBufferRef.current.getChannelData(0).length
+      const totalLength = audioBuffer.getChannelData(0).length
       let start = 0
       let end = totalLength
       const { startSample, endSample } = selectionRef.current
@@ -621,7 +616,7 @@ export default function WaveEditor({
 
       const fadeLength = end - start
       for (let ch = 0; ch < nChannels; ch++) {
-        const channelData = audioBufferRef.current.getChannelData(ch)
+        const channelData = audioBuffer.getChannelData(ch)
         for (let i = 0; i < fadeLength; i++) {
           const gain = 1 - i / fadeLength
           channelData[start + i] *= gain
@@ -634,7 +629,7 @@ export default function WaveEditor({
 
   function onClickNormalize() {
     performAudioEdit(() => {
-      const totalLength = audioBufferRef.current.getChannelData(0).length
+      const totalLength = audioBuffer.getChannelData(0).length
       let start = 0
       let end = totalLength
       const { startSample, endSample } = selectionRef.current
@@ -648,7 +643,7 @@ export default function WaveEditor({
       let max = 0
 
       for (let ch = 0; ch < nChannels; ch++) {
-        const channelData = audioBufferRef.current.getChannelData(ch)
+        const channelData = audioBuffer.getChannelData(ch)
         for (let i = 0; i < selectionLength; i++) {
           const sample = channelData[start + i]
           if (Math.abs(sample) > max) {
@@ -659,7 +654,7 @@ export default function WaveEditor({
 
       const gain = max === 0 ? 1 : target / max
       for (let ch = 0; ch < nChannels; ch++) {
-        const channelData = audioBufferRef.current.getChannelData(ch)
+        const channelData = audioBuffer.getChannelData(ch)
         for (let i = 0; i < selectionLength; i++) {
           channelData[start + i] *= gain
         }
@@ -670,14 +665,12 @@ export default function WaveEditor({
   }
 
   function onClickSelectToStart() {
-    if (!audioBufferRef.current) return
     const cursorSample = playbackRef.current.getCurrentSample(sampleRate)
     updateSelection({ startSample: 0, endSample: cursorSample })
     playbackRef.current.seek(0)
   }
 
   function onClickSelectToEnd() {
-    if (!audioBufferRef.current) return
     const cursorSample = playbackRef.current.getCurrentSample(sampleRate)
     updateSelection({ startSample: cursorSample, endSample: totalSamples })
     playbackRef.current.seek(cursorSample / sampleRate)
@@ -715,9 +708,9 @@ export default function WaveEditor({
         />
         <IconButton
           type="button"
-          name={playback.isPlaying ? 'Pause' : 'Stop'}
-          aria-label={playback.isPlaying ? 'Pause' : 'Stop'}
-          title={playback.isPlaying ? 'Pause' : 'Stop'}
+          name={playbackState.isPlaying ? 'Pause' : 'Stop'}
+          aria-label={playbackState.isPlaying ? 'Pause' : 'Stop'}
+          title={playbackState.isPlaying ? 'Pause' : 'Stop'}
           onClick={onClickStop}
         />
         <Divider />

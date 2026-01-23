@@ -57,7 +57,7 @@ export default function WaveformCanvas({
   selection,
   canvasRevision,
   getCursorSample,
-  height,
+  height: heightProp,
   onResize,
   onClick,
   onMouseDown,
@@ -72,13 +72,13 @@ export default function WaveformCanvas({
   const baseCtxRef: CtxRef = useRef<CanvasRenderingContext2D | null>(null)
   const cursorCtxRef: CtxRef = useRef<CanvasRenderingContext2D | null>(null)
   const { width, height: measuredHeight } = useElementSize(wrapRef)
-  const cssHeight = height ?? measuredHeight
+  const height = heightProp ?? measuredHeight
 
   useEffect(() => {
     if (!onResize) return
-    if (width <= 0 || cssHeight <= 0) return
-    onResize({ width, height: cssHeight })
-  }, [cssHeight, onResize, width])
+    if (width <= 0 || height <= 0) return
+    onResize({ width, height })
+  }, [height, onResize, width])
 
   useEffect(() => {
     const baseCanvas = baseCanvasRef.current
@@ -87,7 +87,7 @@ export default function WaveformCanvas({
 
     const dpr = window.devicePixelRatio || 1
     const canvasWidth = Math.max(1, Math.floor(width))
-    const canvasHeight = Math.max(1, Math.floor(cssHeight))
+    const canvasHeight = Math.max(1, Math.floor(height))
 
     function setupCanvas(canvas: HTMLCanvasElement, ctxRef: CtxRef) {
       canvas.width = Math.floor(canvasWidth * dpr)
@@ -100,18 +100,18 @@ export default function WaveformCanvas({
 
     setupCanvas(baseCanvas, baseCtxRef)
     setupCanvas(cursorCanvas, cursorCtxRef)
-  }, [width, cssHeight])
+  }, [width, height])
 
   useEffect(() => {
     const ctx = baseCtxRef.current
     if (!ctx) return
-    if (width <= 0 || cssHeight <= 0) return
+    if (width <= 0 || height <= 0) return
     if (visiblePeaks.visibleMinPerChannel.length < nChannels) return
     if (visiblePeaks.visibleMaxPerChannel.length < nChannels) return
 
     drawWaveformBase(ctx, {
       cssWidth: width,
-      cssHeight,
+      cssHeight: height,
       nChannels,
       samplesPerPixel,
       viewStartSample,
@@ -120,7 +120,7 @@ export default function WaveformCanvas({
     })
   }, [
     canvasRevision,
-    cssHeight,
+    height,
     nChannels,
     samplesPerPixel,
     selection,
@@ -138,7 +138,7 @@ export default function WaveformCanvas({
         const cursorSample = getCursorSample ? getCursorSample() : null
         drawCursor(ctx, {
           cssWidth: width,
-          cssHeight,
+          cssHeight: height,
           viewStartSample,
           samplesPerPixel,
           cursorSample,
@@ -149,10 +149,10 @@ export default function WaveformCanvas({
 
     frame = requestAnimationFrame(draw)
     return () => cancelAnimationFrame(frame)
-  }, [cssHeight, getCursorSample, width, samplesPerPixel, viewStartSample])
+  }, [height, getCursorSample, width, samplesPerPixel, viewStartSample])
 
   return (
-    <CanvasWrap ref={wrapRef} height={height}>
+    <CanvasWrap ref={wrapRef} height={heightProp}>
       <BaseCanvas
         ref={baseCanvasRef}
         onClick={onClick}

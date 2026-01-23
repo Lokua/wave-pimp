@@ -7,6 +7,7 @@ export type PlaybackStateSnapshot = {
 
 type AudioPlaybackOptions = {
   audioContext: AudioContext
+  audioBuffer: AudioBuffer
   onStateChange: (state: PlaybackStateSnapshot) => void
 }
 
@@ -17,15 +18,20 @@ type PlayOptions = {
 export default class AudioPlayback {
   private readonly audioContext: AudioContext
   private readonly onStateChange: (state: PlaybackStateSnapshot) => void
-  private audioBuffer: AudioBuffer | null = null
+  private audioBuffer: AudioBuffer
   private sourceNode: AudioBufferSourceNode | null = null
   private startOffsetSeconds = 0
   private startTimeSeconds = 0
 
   public isPlaying = false
 
-  constructor({ audioContext, onStateChange }: AudioPlaybackOptions) {
+  constructor({
+    audioContext,
+    audioBuffer,
+    onStateChange,
+  }: AudioPlaybackOptions) {
     this.audioContext = audioContext
+    this.audioBuffer = audioBuffer
     this.onStateChange = onStateChange
   }
 
@@ -36,12 +42,10 @@ export default class AudioPlayback {
   }
 
   getDurationSeconds(): number {
-    return this.audioBuffer ? this.audioBuffer.duration : 0
+    return this.audioBuffer.duration
   }
 
   getCurrentTimeSeconds(): number {
-    if (!this.audioBuffer) return 0
-
     if (!this.isPlaying || !this.sourceNode) {
       return this.startOffsetSeconds
     }
@@ -61,8 +65,6 @@ export default class AudioPlayback {
   }
 
   async play({ fromSeconds }: PlayOptions = {}) {
-    if (!this.audioBuffer) return
-
     if (this.audioContext.state === 'suspended') {
       await this.audioContext.resume()
     }
@@ -99,7 +101,6 @@ export default class AudioPlayback {
   }
 
   pause() {
-    if (!this.audioBuffer) return
     if (!this.isPlaying) return
 
     const played = this.audioContext.currentTime - this.startTimeSeconds
@@ -118,8 +119,6 @@ export default class AudioPlayback {
   }
 
   seek(seconds: number) {
-    if (!this.audioBuffer) return
-
     const next = this.clampTime(seconds)
     const wasPlaying = this.isPlaying
 
@@ -137,11 +136,6 @@ export default class AudioPlayback {
     else void this.play()
   }
 
-  destroy() {
-    this.stop()
-    void this.audioContext.close()
-  }
-
   private stopSourceNodeOnly() {
     if (!this.sourceNode) return
 
@@ -157,8 +151,7 @@ export default class AudioPlayback {
   }
 
   private clampTime(seconds: number): number {
-    const d = this.audioBuffer ? this.audioBuffer.duration : 0
-    return Math.max(0, Math.min(seconds, d))
+    return Math.max(0, Math.min(seconds, this.audioBuffer.duration))
   }
 
   private emitState() {

@@ -4,12 +4,12 @@ import type { PlaybackStateSnapshot } from './AudioPlayback'
 
 type UseAudioPlaybackOptions = {
   audioContext: AudioContext
-  closeOnUnmount?: boolean
+  audioBuffer: AudioBuffer
 }
 
 export default function useAudioPlayback({
   audioContext,
-  closeOnUnmount = true,
+  audioBuffer,
 }: UseAudioPlaybackOptions) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [startOffsetSeconds, setStartOffsetSeconds] = useState(0)
@@ -19,6 +19,7 @@ export default function useAudioPlayback({
   const playbackRef = useRef(
     new AudioPlayback({
       audioContext,
+      audioBuffer,
       onStateChange(snapshot: PlaybackStateSnapshot) {
         setIsPlaying(snapshot.isPlaying)
         setStartOffsetSeconds(snapshot.startOffsetSeconds)
@@ -29,14 +30,11 @@ export default function useAudioPlayback({
   )
 
   useEffect(() => {
+    const playback = playbackRef.current
     return () => {
-      if (closeOnUnmount) {
-        playbackRef.current.destroy()
-      } else {
-        playbackRef.current.stop()
-      }
+      playback.stop()
     }
-  }, [closeOnUnmount])
+  }, [])
 
   return {
     playback: playbackRef,

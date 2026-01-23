@@ -8,8 +8,6 @@ export interface AudioFile {
   sampleRate: number
   bitDepth: number
   channels: number
-  // Do we need both?
-  buffer: ArrayBuffer
   audioBuffer: AudioBuffer
 }
 
