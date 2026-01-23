@@ -3,11 +3,14 @@ import styled from '@emotion/styled'
 
 import type { AudioFile, Settings, VisiblePeaks } from './types'
 import { formatDuration, formatSize } from './util'
-import WaveformCanvas from './WaveformCanvas'
+import {
+  Canvas as WaveformCanvas,
+  buildPeaksCache,
+  getVisiblePeaksFromCache,
+  encodeWavForSettings,
+} from './WaveEditor'
 import useAudioPlayback from './useAudioPlayback'
-import { buildPeaksCache, getVisiblePeaksFromCache } from './waveformPeaks'
 import IconButton from './IconButton'
-import { encodeWavForSettings } from './wavExport'
 import Toast from './Toast'
 import useToast from './useToast'
 

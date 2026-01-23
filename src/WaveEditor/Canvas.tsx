@@ -1,8 +1,9 @@
 import styled from '@emotion/styled'
 import { useEffect, useRef } from 'react'
-import type { SelectionRange, VisiblePeaks } from './types'
-import { drawCursor, drawWaveformBase } from './waveformRender'
-import useElementSize from './useElementSize'
+
+import type { SelectionRange, VisiblePeaks } from '../types'
+import { drawCursor, drawWaveformBase } from './render'
+import useElementSize from '../useElementSize'
 
 const CanvasWrap = styled.div<{ height?: number }>`
   position: relative;

@@ -1,4 +1,4 @@
-import type { SelectionRange, VisiblePeaks } from './types'
+import type { SelectionRange, VisiblePeaks } from '../types'
 
 type DrawWaveformOptions = {
   cssWidth: number
@@ -204,69 +204,24 @@ function drawChannelWaveform(
     channelTop = channelIndex * channelHeight
   }
 
-  const centerY = channelTop + channelHeight / 2
-  const amplitudeScale = channelHeight / 2
-
-  if (samplesPerPixel >= 4) {
-    ctx.beginPath()
-
-    for (let i = 0; i < maxs.length; i++) {
-      const x = i + 0.5
-      const y = centerY - maxs[i] * amplitudeScale
-      if (i === 0) ctx.moveTo(x, y)
-      else ctx.lineTo(x, y)
-    }
-
-    for (let i = mins.length - 1; i >= 0; i--) {
-      const x = i + 0.5
-      const y = centerY - mins[i] * amplitudeScale
-      ctx.lineTo(x, y)
-    }
-
-    ctx.closePath()
-    ctx.fillStyle = readCssVar('--waveform-color', '#d0d0d0')
-    ctx.fill()
-    return
-  }
-
-  if (samplesPerPixel > 1) {
-    ctx.beginPath()
-    for (let i = 0; i < cssWidth; i++) {
-      const min = mins[i] ?? 0
-      const max = maxs[i] ?? 0
-      const peak = Math.abs(max) >= Math.abs(min) ? max : min
-
-      const x = i + 0.5
-      const y = centerY - peak * amplitudeScale
-      if (i === 0) ctx.moveTo(x, y)
-      else ctx.lineTo(x, y)
-    }
-
-    ctx.strokeStyle = readCssVar('--waveform-color', '#d0d0d0')
-    ctx.lineWidth = 1
-    ctx.stroke()
-    return
-  }
-
+  const zeroLineY = channelTop + channelHeight / 2
+  ctx.strokeStyle = readCssVar('--waveform-color', '#222')
+  ctx.lineWidth = 1
   ctx.beginPath()
 
-  for (let i = 0; i < cssWidth; i++) {
-    const min = mins[i] ?? 0
-    const max = maxs[i] ?? 0
-    const s = Math.abs(max) >= Math.abs(min) ? max : min
-    const x = i + 0.5
-    const y = centerY - s * amplitudeScale
-    if (i === 0) ctx.moveTo(x, y)
-    else ctx.lineTo(x, y)
+  for (let x = 0; x < cssWidth; x++) {
+    const min = mins[x]
+    const max = maxs[x]
+    const minY = zeroLineY + min * channelHeight * 0.5
+    const maxY = zeroLineY + max * channelHeight * 0.5
+    ctx.moveTo(x, minY)
+    ctx.lineTo(x, maxY)
   }
 
-  ctx.strokeStyle = readCssVar('--waveform-color', '#d0d0d0')
-  ctx.lineWidth = 1
   ctx.stroke()
 }
 
 function readCssVar(name: string, fallback: string) {
-  if (typeof window === 'undefined') return fallback
   const value = getComputedStyle(document.documentElement).getPropertyValue(name)
-  return value.trim() || fallback
+  return value ? value.trim() : fallback
 }

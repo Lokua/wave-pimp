@@ -1,5 +1,5 @@
-import encodeWav from './encodeWav'
-import type { Settings } from './types'
+import encodeWav from '../encodeWav'
+import type { Settings } from '../types'
 
 async function resampleBuffer(
   audioBuffer: AudioBuffer,

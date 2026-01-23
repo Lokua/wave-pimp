@@ -1,21 +1,14 @@
 import styled from '@emotion/styled'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import type { AudioFile, SelectionRange, Settings, VisiblePeaks } from './types'
-import WaveformCanvas from './WaveformCanvas'
-import IconButton from './IconButton'
-import useAudioPlayback from './useAudioPlayback'
-import { buildPeaksCache, getVisiblePeaksFromCache } from './waveformPeaks'
-import { encodeWavForSettings } from './wavExport'
-import Toast from './Toast'
-import useToast from './useToast'
-
-const Controls = styled.div`
-  padding: 0 8px;
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-`
+import type { AudioFile, SelectionRange, Settings, VisiblePeaks } from '../types'
+import WaveformCanvas from './Canvas'
+import useAudioPlayback from '../useAudioPlayback'
+import { buildPeaksCache, getVisiblePeaksFromCache } from './peaks'
+import { encodeWavForSettings } from './export'
+import Toast from '../Toast'
+import useToast from '../useToast'
+import WaveEditorControls from './Controls'
 
 const CanvasContainer = styled.div`
   flex: 1;
@@ -24,12 +17,6 @@ const CanvasContainer = styled.div`
   justify-content: center;
   padding: 24px 8px 12px;
   overflow: hidden;
-`
-
-const Divider = styled.span`
-  width: 1px;
-  background: var(--separator-color);
-  margin: 0 8px;
 `
 
 const MAX_CACHE_WIDTH = 7680
@@ -42,7 +29,7 @@ type WaveEditorProps = {
   onUpdateFile: (next: AudioFile) => void
 }
 
-export default function WaveEditor({
+export default function Editor({
   file,
   settings,
   audioContext,
@@ -698,118 +685,24 @@ export default function WaveEditor({
 
   return (
     <>
-      <Controls>
-        <IconButton
-          type="button"
-          name="Play"
-          aria-label="Play"
-          title="Play"
-          onClick={onClickPlay}
-        />
-        <IconButton
-          type="button"
-          name={playbackState.isPlaying ? 'Pause' : 'Stop'}
-          aria-label={playbackState.isPlaying ? 'Pause' : 'Stop'}
-          title={playbackState.isPlaying ? 'Pause' : 'Stop'}
-          onClick={onClickStop}
-        />
-        <Divider />
-        <IconButton
-          type="button"
-          name="ZoomIn"
-          aria-label="Zoom in"
-          title="Zoom in"
-          onClick={onClickZoomIn}
-        />
-        <IconButton
-          type="button"
-          name="ZoomOut"
-          aria-label="Zoom out"
-          title="Zoom out"
-          onClick={onClickZoomOut}
-        />
-        <IconButton
-          type="button"
-          name="ZoomFit"
-          aria-label="Zoom to fit"
-          title="Zoom to fit"
-          onClick={onClickZoomFit}
-        />
-        <Divider />
-        <IconButton
-          type="button"
-          name="SelectFromStart"
-          aria-label="Select From Start"
-          title="Select from start"
-          onClick={onClickSelectToStart}
-        />
-        <IconButton
-          type="button"
-          name="SelectToEnd"
-          aria-label="Select To End"
-          title="Select to end"
-          onClick={onClickSelectToEnd}
-        />
-        <Divider />
-        <IconButton
-          type="button"
-          name="Crop"
-          aria-label="Crop"
-          title="Crop"
-          onClick={onClickCrop}
-        />
-        <IconButton
-          type="button"
-          name="Trim"
-          aria-label="Trim"
-          title="Trim"
-          onClick={onClickTrim}
-        />
-        <IconButton
-          type="button"
-          name="FadeIn"
-          aria-label="Fade in"
-          title="Fade in"
-          onClick={onClickFadeIn}
-        />
-        <IconButton
-          type="button"
-          name="FadeOut"
-          aria-label="Fade out"
-          title="Fade out"
-          onClick={onClickFadeOut}
-        />
-        <IconButton
-          type="button"
-          name="Normalize"
-          aria-label="Normalize"
-          title="Normalize"
-          onClick={onClickNormalize}
-        />
-        <Divider />
-        <IconButton
-          type="button"
-          name="Save"
-          aria-label="Save"
-          title="Save"
-          onClick={onClickSave}
-        />
-        <IconButton
-          type="button"
-          name="SaveAs"
-          aria-label="Save As"
-          title="Save As"
-          onClick={onClickSaveAs}
-        />
-        <IconButton
-          type="button"
-          name="Back"
-          aria-label="Back"
-          title="Back to list (Esc)"
-          onClick={onBack}
-          style={{ marginLeft: 'auto' }}
-        />
-      </Controls>
+      <WaveEditorControls
+        isPlaying={playbackState.isPlaying}
+        onClickPlay={onClickPlay}
+        onClickStop={onClickStop}
+        onClickZoomIn={onClickZoomIn}
+        onClickZoomOut={onClickZoomOut}
+        onClickZoomFit={onClickZoomFit}
+        onClickSelectToStart={onClickSelectToStart}
+        onClickSelectToEnd={onClickSelectToEnd}
+        onClickCrop={onClickCrop}
+        onClickTrim={onClickTrim}
+        onClickFadeIn={onClickFadeIn}
+        onClickFadeOut={onClickFadeOut}
+        onClickNormalize={onClickNormalize}
+        onClickSave={onClickSave}
+        onClickSaveAs={onClickSaveAs}
+        onBack={onBack}
+      />
       <CanvasContainer>
         <WaveformCanvas
           nChannels={nChannels}

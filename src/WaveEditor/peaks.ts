@@ -1,4 +1,4 @@
-import type { PeaksCache, PeaksCacheLevel, VisiblePeaks } from './types'
+import type { PeaksCache, PeaksCacheLevel, VisiblePeaks } from '../types'
 
 export function buildPeaksCache(
   audioBuffer: AudioBuffer,
