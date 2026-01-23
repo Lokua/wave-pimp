@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
@@ -31,6 +31,102 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   : RENDERER_DIST
 
 let win: BrowserWindow | null
+
+function sendOpenSettings() {
+  const target = BrowserWindow.getFocusedWindow() ?? win
+  if (target) {
+    target.webContents.send('open-settings')
+  }
+}
+
+function createAppMenu() {
+  const isMac = process.platform === 'darwin'
+  const template = [
+    ...(isMac
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { role: 'about' },
+              { type: 'separator' },
+              {
+                label: 'Settings...',
+                accelerator: 'CmdOrCtrl+,',
+                click: sendOpenSettings,
+              },
+              { type: 'separator' },
+              { role: 'services' },
+              { type: 'separator' },
+              { role: 'hide' },
+              { role: 'hideOthers' },
+              { role: 'unhide' },
+              { type: 'separator' },
+              { role: 'quit' },
+            ],
+          },
+        ]
+      : [
+          {
+            label: 'File',
+            submenu: [
+              {
+                label: 'Settings...',
+                accelerator: 'CmdOrCtrl+,',
+                click: sendOpenSettings,
+              },
+              { type: 'separator' },
+              { role: 'quit' },
+            ],
+          },
+        ]),
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        ...(isMac
+          ? [
+              { role: 'pasteAndMatchStyle' },
+              { role: 'delete' },
+              { role: 'selectAll' },
+              { type: 'separator' },
+              { role: 'speech' },
+            ]
+          : [{ role: 'delete' }, { type: 'separator' }, { role: 'selectAll' }]),
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        ...(isMac
+          ? [{ type: 'separator' }, { role: 'front' }]
+          : [{ role: 'close' }]),
+      ],
+    },
+  ]
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
 
 function createWindow() {
   win = new BrowserWindow({
@@ -101,9 +197,46 @@ ipcMain.handle(
   },
 )
 
+ipcMain.handle(
+  'save-wav',
+  async (
+    _,
+    data: {
+      bytes: ArrayBuffer | Uint8Array
+      path?: string
+      defaultPath?: string
+    },
+  ) => {
+    try {
+      const { bytes, path: targetPath, defaultPath } = data
+      let savePath = targetPath
+      if (!savePath) {
+        const result = await dialog.showSaveDialog({
+          defaultPath,
+          filters: [{ name: 'WAV', extensions: ['wav'] }],
+        })
+        if (result.canceled || !result.filePath) {
+          return { canceled: true }
+        }
+        savePath = result.filePath
+      }
+
+      const buffer = Buffer.from(bytes)
+      await fs.writeFile(savePath, buffer)
+      return { canceled: false, path: savePath }
+    } catch (error) {
+      console.error('Failed to save WAV:', error)
+      throw error
+    }
+  },
+)
+
 contextMenu({
   showLearnSpelling: false,
   showInspectElement: true,
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  createWindow()
+  createAppMenu()
+})

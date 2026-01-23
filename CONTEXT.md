@@ -55,3 +55,7 @@ onChange={(e) => {
 ```
 
 Use `on<Event><Target>` naming convention, so `onClickFoo` and `onClickBar`, never `onBarClick`, this isn't programming with Yoda.
+
+# CSS
+
+- Use recess ordering which generally follows the box model: positioning, display that impacts the outside world, display that impacts in the inside world, then details that don't impact sizing like colors, text alignment, etc.

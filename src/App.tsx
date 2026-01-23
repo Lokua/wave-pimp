@@ -1,11 +1,12 @@
 import styled from '@emotion/styled'
-import { useState } from 'react'
-import { parseBlob } from 'music-metadata'
+import { useEffect, useState } from 'react'
 
-import { AudioFile } from './types'
+import { AudioFile, Settings } from './types'
 import useDropArea from './useDropArea'
 import WaveCard from './WaveCard'
 import WaveEditor from './WaveEditor'
+import { parseBlob } from 'music-metadata'
+import SettingsModal from './SettingsModal'
 
 const audioCtx = new AudioContext()
 
@@ -65,12 +66,18 @@ export default function App() {
   const [view, setView] = useState('list')
   const [file, setFile] = useState<AudioFile | null>(null)
   const [files, setFiles] = useState<AudioFile[]>([])
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [settings, setSettings] = useState<Settings>({
+    sampleRate: 48000,
+    bitDepth: 24,
+  })
   const { isDragActive, eventHandlers } = useDropArea(async (files) => {
     setFiles(
       await Promise.all(
         files.map(async (file) => {
           const metadata = await parseBlob(file)
           console.log({ file, metadata })
+          const filePath = (file as File & { path?: string }).path
           if (
             metadata.format.duration == null ||
             metadata.format.sampleRate == null ||
@@ -84,6 +91,7 @@ export default function App() {
           return {
             id: crypto.randomUUID(),
             name: file.name,
+            filePath,
             size: file.size,
             type: file.type,
             duration: metadata.format.duration,
@@ -112,6 +120,17 @@ export default function App() {
     setView('list')
   }
 
+  useEffect(() => {
+    function openSettings() {
+      setIsSettingsOpen(true)
+    }
+
+    window.electron.on('open-settings', openSettings)
+    return () => {
+      window.electron.off('open-settings', openSettings)
+    }
+  }, [])
+
   return (
     <Container>
       <Titlebar />
@@ -133,6 +152,7 @@ export default function App() {
               file && (
                 <WaveEditor
                   file={file}
+                  settings={settings}
                   audioContext={audioCtx}
                   onBack={onClickBack}
                   onUpdateFile={updateFile}
@@ -146,6 +166,14 @@ export default function App() {
           </DropArea>
         )}
       </Content>
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        settings={settings}
+        onChangeSettings={setSettings}
+        onClose={() => {
+          setIsSettingsOpen(false)
+        }}
+      />
     </Container>
   )
 }

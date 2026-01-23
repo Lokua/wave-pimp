@@ -1,6 +1,7 @@
 export interface AudioFile {
   id: string
   name: string
+  filePath?: string
   size: number
   type: string
   duration: number
@@ -29,4 +30,15 @@ export type VisiblePeaks = {
 export type SelectionRange = {
   startSample: number | null
   endSample: number | null
+}
+
+export const SAMPLE_RATES = [
+  8000, 11025, 16000, 22050, 32000, 44100, 48000, 88200, 96000, 192000,
+] as const
+
+export const BIT_DEPTHS = [8, 16, 24, 32] as const
+
+export type Settings = {
+  sampleRate: (typeof SAMPLE_RATES)[number]
+  bitDepth: (typeof BIT_DEPTHS)[number]
 }

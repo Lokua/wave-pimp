@@ -1,11 +1,12 @@
 import styled from '@emotion/styled'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import type { AudioFile, SelectionRange, VisiblePeaks } from './types'
+import type { AudioFile, SelectionRange, Settings, VisiblePeaks } from './types'
 import WaveformCanvas from './WaveformCanvas'
 import IconButton from './IconButton'
 import useAudioPlayback from './useAudioPlayback'
 import { buildPeaksCache, getVisiblePeaksFromCache } from './waveformPeaks'
+import encodeWav from './encodeWav'
 
 const Controls = styled.div`
   padding: 0 8px;
@@ -29,10 +30,26 @@ const Divider = styled.span`
   margin: 0 8px;
 `
 
+const Toast = styled.div`
+  position: fixed;
+  right: 20px;
+  top: 20px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: var(--bg-controls);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  font-size: 13px;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+  z-index: 20;
+`
+
 const MAX_CACHE_WIDTH = 7680
 
 type WaveEditorProps = {
   file: AudioFile
+  settings: Settings
   audioContext: AudioContext
   onBack: () => void
   onUpdateFile: (next: AudioFile) => void
@@ -40,6 +57,7 @@ type WaveEditorProps = {
 
 export default function WaveEditor({
   file,
+  settings,
   audioContext,
   onBack,
   onUpdateFile,
@@ -56,6 +74,7 @@ export default function WaveEditor({
     visibleMinPerChannel: [],
     visibleMaxPerChannel: [],
   })
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
   const playback = useAudioPlayback({
     audioContext,
     closeOnUnmount: false,
@@ -72,6 +91,7 @@ export default function WaveEditor({
   const canvasWidthRef = useRef(canvasWidth)
   const canvasRectRef = useRef<DOMRect | null>(null)
   const audioBufferRef = useRef(file.audioBuffer)
+  const toastTimeoutRef = useRef<number | null>(null)
 
   const nChannels = file.audioBuffer.numberOfChannels
   const sampleRate = file.audioBuffer.sampleRate
@@ -106,6 +126,14 @@ export default function WaveEditor({
   useEffect(() => {
     canvasWidthRef.current = canvasWidth
   }, [canvasWidth])
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        window.clearTimeout(toastTimeoutRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (canvasWidth <= 0) return
@@ -146,8 +174,74 @@ export default function WaveEditor({
     return playbackRef.current.getCurrentSample(sampleRate)
   }
 
-  function onClickBack() {
-    onBack()
+  function showToast(message: string) {
+    setToastMessage(message)
+    if (toastTimeoutRef.current) {
+      window.clearTimeout(toastTimeoutRef.current)
+    }
+    toastTimeoutRef.current = window.setTimeout(() => {
+      setToastMessage(null)
+    }, 2000)
+  }
+
+  function ensureWavExtension(name: string) {
+    return name.toLowerCase().endsWith('.wav') ? name : `${name}.wav`
+  }
+
+  function getFileNameFromPath(filePath: string) {
+    return filePath.split(/[\\/]/).pop() ?? filePath
+  }
+
+  async function getBufferForSave() {
+    if (!audioBufferRef.current) return null
+    const sourceBuffer = audioBufferRef.current
+    if (sourceBuffer.sampleRate === settings.sampleRate) return sourceBuffer
+
+    const targetLength = Math.ceil(sourceBuffer.duration * settings.sampleRate)
+    const offlineContext = new OfflineAudioContext(
+      sourceBuffer.numberOfChannels,
+      targetLength,
+      settings.sampleRate,
+    )
+    const source = offlineContext.createBufferSource()
+    source.buffer = sourceBuffer
+    source.connect(offlineContext.destination)
+    source.start(0)
+    return await offlineContext.startRendering()
+  }
+
+  async function saveWav({
+    forceDialog,
+    toastLabel,
+  }: {
+    forceDialog: boolean
+    toastLabel: string
+  }) {
+    const bufferToSave = await getBufferForSave()
+    if (!bufferToSave) return
+
+    const bytes = encodeWav(bufferToSave, settings.bitDepth)
+    const fallbackName = ensureWavExtension(file.name)
+    const defaultPath = file.filePath ?? fallbackName
+
+    const result = (await window.electron.invoke('save-wav', {
+      bytes,
+      path: forceDialog ? undefined : file.filePath,
+      defaultPath,
+    })) as { canceled?: boolean; path?: string }
+
+    if (!result || result.canceled || !result.path) return
+
+    if (result.path !== file.filePath) {
+      const nextName = getFileNameFromPath(result.path)
+      onUpdateFile({
+        ...file,
+        filePath: result.path,
+        name: nextName,
+      })
+    }
+
+    showToast(toastLabel)
   }
 
   function onClickPlay() {
@@ -345,12 +439,26 @@ export default function WaveEditor({
 
   function onWheel(event: React.WheelEvent<HTMLCanvasElement>) {
     if (!audioBufferRef.current) return
-    event.preventDefault()
     const delta =
-      event.deltaX !== 0 ? event.deltaX : event.shiftKey ? event.deltaY : 0
+      Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        ? event.deltaX
+        : event.shiftKey
+          ? event.deltaY
+          : 0
     if (delta === 0) return
-    const panAmount = delta * samplesPerPixelRef.current * 5
-    setViewStartSample((prev) => prev + panAmount)
+
+    const width = canvasWidthRef.current
+    const samplesPerPixelValue = samplesPerPixelRef.current
+    const visibleSamples = width * samplesPerPixelValue
+    const maxStart = Math.max(0, totalSamples - visibleSamples)
+    const panAmount = delta * samplesPerPixelValue * 5
+    const next = Math.max(
+      0,
+      Math.min(viewStartSampleRef.current + panAmount, maxStart),
+    )
+    if (next === viewStartSampleRef.current) return
+    event.preventDefault()
+    setViewStartSample(next)
   }
 
   function onClickZoomIn() {
@@ -411,6 +519,7 @@ export default function WaveEditor({
         audioBuffer: result,
         duration: result.duration,
       }
+      audioBufferRef.current = result
       onUpdateFile(nextFile)
       setSelection({ startSample: null, endSample: null })
       setViewStartSample(0)
@@ -418,10 +527,20 @@ export default function WaveEditor({
       return
     }
 
+    const sourceBuffer = audioBufferRef.current
+    const nextBuffer = audioContext.createBuffer(
+      sourceBuffer.numberOfChannels,
+      sourceBuffer.length,
+      sourceBuffer.sampleRate,
+    )
+    for (let ch = 0; ch < sourceBuffer.numberOfChannels; ch++) {
+      nextBuffer.copyToChannel(sourceBuffer.getChannelData(ch), ch)
+    }
+    audioBufferRef.current = nextBuffer
     onUpdateFile({
       ...file,
-      audioBuffer: audioBufferRef.current,
-      duration: audioBufferRef.current.duration,
+      audioBuffer: nextBuffer,
+      duration: nextBuffer.duration,
     })
     if (!preserveSelection) {
       setSelection({ startSample: null, endSample: null })
@@ -595,6 +714,21 @@ export default function WaveEditor({
     playbackRef.current.seek(cursorSample / sampleRate)
   }
 
+  function onClickSave() {
+    const forceDialog = !file.filePath
+    void saveWav({
+      forceDialog,
+      toastLabel: 'Saved',
+    })
+  }
+
+  function onClickSaveAs() {
+    void saveWav({
+      forceDialog: true,
+      toastLabel: 'Saved As',
+    })
+  }
+
   function onResizeCanvas(size: { width: number }) {
     setCanvasWidth(size.width)
   }
@@ -677,11 +811,24 @@ export default function WaveEditor({
           aria-label="Normalize"
           onClick={onClickNormalize}
         />
+        <Divider />
+        <IconButton
+          type="button"
+          name="Save"
+          aria-label="Save"
+          onClick={onClickSave}
+        />
+        <IconButton
+          type="button"
+          name="SaveAs"
+          aria-label="Save As"
+          onClick={onClickSaveAs}
+        />
         <IconButton
           type="button"
           name="Back"
           aria-label="Back"
-          onClick={onClickBack}
+          onClick={onBack}
           style={{ marginLeft: 'auto' }}
         />
       </Controls>
@@ -702,6 +849,11 @@ export default function WaveEditor({
           onWheel={onWheel}
         />
       </CanvasContainer>
+      {toastMessage ? (
+        <Toast role="status" aria-live="polite">
+          {toastMessage}
+        </Toast>
+      ) : null}
     </>
   )
 }

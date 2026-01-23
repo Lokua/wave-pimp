@@ -4,6 +4,7 @@ import Pause from '@material-symbols/svg-400/rounded/pause-fill.svg?react'
 import SelectFromStart from '@material-symbols/svg-400/rounded/text_select_start-fill.svg?react'
 import Remove from '@material-symbols/svg-400/rounded/delete-fill.svg?react'
 import Save from '@material-symbols/svg-400/rounded/save-fill.svg?react'
+import SaveAs from '@material-symbols/svg-400/rounded/save_as-fill.svg?react'
 import ZoomIn from '@material-symbols/svg-400/rounded/zoom_in-fill.svg?react'
 import ZoomOut from '@material-symbols/svg-400/rounded/zoom_out-fill.svg?react'
 import Close from '@material-symbols/svg-400/rounded/close-fill.svg?react'
@@ -28,6 +29,7 @@ const icons = {
   SelectFromStart,
   Remove,
   Save,
+  SaveAs,
   ZoomIn,
   ZoomOut,
   Close,
