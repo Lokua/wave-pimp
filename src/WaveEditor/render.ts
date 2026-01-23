@@ -1,5 +1,8 @@
 import type { SelectionRange, VisiblePeaks } from '../types'
 
+const ENVELOPE_FILL_MIN_SAMPLES_PER_PIXEL = 4
+const PEAK_LINE_MIN_SAMPLES_PER_PIXEL = 1
+
 type DrawWaveformOptions = {
   cssWidth: number
   cssHeight: number
@@ -177,7 +180,6 @@ function drawChannelWaveform(
     mins,
     maxs,
     samplesPerPixel,
-    viewStartSample,
     cssHeight,
     cssWidth,
     gutterHeight,
@@ -205,23 +207,141 @@ function drawChannelWaveform(
   }
 
   const zeroLineY = channelTop + channelHeight / 2
-  ctx.strokeStyle = readCssVar('--waveform-color', '#222')
-  ctx.lineWidth = 1
-  ctx.beginPath()
+  const amplitudeScale = channelHeight / 2
 
-  for (let x = 0; x < cssWidth; x++) {
-    const min = mins[x]
-    const max = maxs[x]
-    const minY = zeroLineY + min * channelHeight * 0.5
-    const maxY = zeroLineY + max * channelHeight * 0.5
-    ctx.moveTo(x, minY)
-    ctx.lineTo(x, maxY)
+  if (samplesPerPixel >= ENVELOPE_FILL_MIN_SAMPLES_PER_PIXEL) {
+    paintEnvelopeFill(ctx, {
+      maxs,
+      mins,
+      zeroLineY,
+      amplitudeScale,
+    })
+    return
   }
 
+  if (samplesPerPixel > PEAK_LINE_MIN_SAMPLES_PER_PIXEL) {
+    paintPeakLine(ctx, {
+      maxs,
+      mins,
+      zeroLineY,
+      amplitudeScale,
+      cssWidth,
+    })
+    return
+  }
+
+  paintDotLine(ctx, {
+    maxs,
+    mins,
+    zeroLineY,
+    amplitudeScale,
+    cssWidth,
+  })
+}
+
+function paintEnvelopeFill(
+  ctx: CanvasRenderingContext2D,
+  {
+    maxs,
+    mins,
+    zeroLineY,
+    amplitudeScale,
+  }: {
+    maxs: Float32Array
+    mins: Float32Array
+    zeroLineY: number
+    amplitudeScale: number
+  },
+) {
+  ctx.beginPath()
+
+  for (let i = 0; i < maxs.length; i++) {
+    const x = i + 0.5
+    const y = zeroLineY - maxs[i] * amplitudeScale
+    if (i === 0) ctx.moveTo(x, y)
+    else ctx.lineTo(x, y)
+  }
+
+  for (let i = mins.length - 1; i >= 0; i--) {
+    const x = i + 0.5
+    const y = zeroLineY - mins[i] * amplitudeScale
+    ctx.lineTo(x, y)
+  }
+
+  ctx.closePath()
+  ctx.fillStyle = readCssVar('--waveform-color', '#222')
+  ctx.fill()
+}
+
+function paintPeakLine(
+  ctx: CanvasRenderingContext2D,
+  {
+    maxs,
+    mins,
+    zeroLineY,
+    amplitudeScale,
+    cssWidth,
+  }: {
+    maxs: Float32Array
+    mins: Float32Array
+    zeroLineY: number
+    amplitudeScale: number
+    cssWidth: number
+  },
+) {
+  ctx.beginPath()
+  for (let i = 0; i < cssWidth; i++) {
+    const min = mins[i] ?? 0
+    const max = maxs[i] ?? 0
+    const peak = Math.abs(max) >= Math.abs(min) ? max : min
+
+    const x = i + 0.5
+    const y = zeroLineY - peak * amplitudeScale
+    if (i === 0) ctx.moveTo(x, y)
+    else ctx.lineTo(x, y)
+  }
+
+  ctx.strokeStyle = readCssVar('--waveform-color', '#222')
+  ctx.lineWidth = 1
+  ctx.stroke()
+}
+
+function paintDotLine(
+  ctx: CanvasRenderingContext2D,
+  {
+    maxs,
+    mins,
+    zeroLineY,
+    amplitudeScale,
+    cssWidth,
+  }: {
+    maxs: Float32Array
+    mins: Float32Array
+    zeroLineY: number
+    amplitudeScale: number
+    cssWidth: number
+  },
+) {
+  ctx.beginPath()
+
+  for (let i = 0; i < cssWidth; i++) {
+    const min = mins[i] ?? 0
+    const max = maxs[i] ?? 0
+    const s = Math.abs(max) >= Math.abs(min) ? max : min
+    const x = i + 0.5
+    const y = zeroLineY - s * amplitudeScale
+    if (i === 0) ctx.moveTo(x, y)
+    else ctx.lineTo(x, y)
+  }
+
+  ctx.strokeStyle = readCssVar('--waveform-color', '#222')
+  ctx.lineWidth = 1
   ctx.stroke()
 }
 
 function readCssVar(name: string, fallback: string) {
-  const value = getComputedStyle(document.documentElement).getPropertyValue(name)
-  return value ? value.trim() : fallback
+  const value = getComputedStyle(document.documentElement).getPropertyValue(
+    name,
+  )
+  return value.trim() || fallback
 }

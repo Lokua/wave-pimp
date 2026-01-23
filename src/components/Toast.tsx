@@ -1,5 +1,4 @@
 import styled from '@emotion/styled'
-
 const ToastRoot = styled.div`
   position: fixed;
   right: 20px;

@@ -7,12 +7,12 @@ import {
   Canvas as WaveformCanvas,
   buildPeaksCache,
   getVisiblePeaksFromCache,
-  encodeWavForSettings,
 } from './WaveEditor'
 import useAudioPlayback from './useAudioPlayback'
-import IconButton from './IconButton'
-import Toast from './Toast'
-import useToast from './useToast'
+import IconButton from './components/IconButton'
+import Toast from './components/Toast'
+import useToast from './components/useToast'
+import { useSaveWav } from './export'
 
 const Card = styled.article<{ isSelected: boolean }>`
   position: relative;
@@ -152,6 +152,13 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
   const renameInputRef = useRef<HTMLInputElement | null>(null)
   const renameSignalRef = useRef(renameSignal)
   const { message: toastMessage, showToast } = useToast()
+  const { saveWav: saveFile } = useSaveWav({
+    file,
+    settings,
+    audioBuffer: file.audioBuffer,
+    onUpdateFile,
+    showToast,
+  })
 
   const nChannels = 1
   const sampleRate = file.audioBuffer.sampleRate
@@ -271,27 +278,19 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
   async function saveWav() {
     const trimmedName = draftName.trim()
     const desiredName = ensureWavExtension(trimmedName || file.name)
-    const bytes = await encodeWavForSettings(file.audioBuffer, settings)
     const defaultPath = file.filePath
       ? replaceFileNameInPath(file.filePath, desiredName)
       : desiredName
-    const result = (await window.electron.invoke('save-wav', {
-      bytes,
-      path: undefined,
+    const resultPath = await saveFile({
+      forceDialog: true,
       defaultPath,
-    })) as { canceled?: boolean; path?: string }
-
-    if (!result || result.canceled || !result.path) return
-
-    const nextName = getFileNameFromPath(result.path)
-    onUpdateFile({
-      ...file,
-      filePath: result.path,
-      name: nextName,
+      toastLabel: 'Saved As',
+      updateFileFromPath: true,
     })
+    if (!resultPath) return
+    const nextName = getFileNameFromPath(resultPath)
     setDraftName(nextName)
     setIsRenaming(false)
-    showToast('Saved As')
   }
 
   function onDoubleClickTitle(event: React.MouseEvent) {

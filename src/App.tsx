@@ -70,7 +70,6 @@ export default function App() {
       await Promise.all(
         files.map(async (file) => {
           const metadata = await parseBlob(file)
-          console.log({ file, metadata })
           const filePath = (file as File & { path?: string }).path
           if (
             metadata.format.duration == null ||

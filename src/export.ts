@@ -1,3 +1,5 @@
+import type { AudioFile, Settings } from './types'
+
 /**
  * Encodes an AudioBuffer to WAV format
  * @param audioBuffer - Web Audio AudioBuffer
@@ -5,7 +7,7 @@
  * @param float - If true and bitDepth is 32, encode as IEEE float
  * @returns WAV file bytes
  */
-export default function encodeWav(
+export function encodeWav(
   audioBuffer: AudioBuffer,
   bitDepth: 8 | 16 | 24 | 32 = 24,
   float: boolean = false,
@@ -57,6 +59,98 @@ export default function encodeWav(
   }
 
   return new Uint8Array(buffer)
+}
+
+async function resampleBuffer(
+  audioBuffer: AudioBuffer,
+  targetSampleRate: number,
+): Promise<AudioBuffer> {
+  const targetLength = Math.ceil(audioBuffer.duration * targetSampleRate)
+  const offlineContext = new OfflineAudioContext(
+    audioBuffer.numberOfChannels,
+    targetLength,
+    targetSampleRate,
+  )
+  const source = offlineContext.createBufferSource()
+  source.buffer = audioBuffer
+  source.connect(offlineContext.destination)
+  source.start(0)
+  return await offlineContext.startRendering()
+}
+
+export async function encodeWavForSettings(
+  audioBuffer: AudioBuffer,
+  settings: Settings,
+): Promise<Uint8Array> {
+  const buffer =
+    audioBuffer.sampleRate === settings.sampleRate
+      ? audioBuffer
+      : await resampleBuffer(audioBuffer, settings.sampleRate)
+  return encodeWav(buffer, settings.bitDepth)
+}
+
+type SaveWavOptions = {
+  forceDialog: boolean
+  defaultPath?: string
+  toastLabel: string
+  updateFileFromPath?: boolean
+}
+
+type UseSaveWavArgs = {
+  file: AudioFile
+  settings: Settings
+  audioBuffer: AudioBuffer
+  onUpdateFile: (next: AudioFile) => void
+  showToast: (message: string) => void
+}
+
+export function useSaveWav({
+  file,
+  settings,
+  audioBuffer,
+  onUpdateFile,
+  showToast,
+}: UseSaveWavArgs) {
+  function ensureWavExtension(name: string) {
+    return name.toLowerCase().endsWith('.wav') ? name : `${name}.wav`
+  }
+
+  function getFileNameFromPath(filePath: string) {
+    return filePath.split(/[\\/]/).pop() ?? filePath
+  }
+
+  async function saveWav({
+    forceDialog,
+    defaultPath,
+    toastLabel,
+    updateFileFromPath = false,
+  }: SaveWavOptions): Promise<string | null> {
+    const bytes = await encodeWavForSettings(audioBuffer, settings)
+    const fallbackName = ensureWavExtension(file.name)
+    const resolvedDefaultPath = defaultPath ?? file.filePath ?? fallbackName
+
+    const result = (await window.electron.invoke('save-wav', {
+      bytes,
+      path: forceDialog ? undefined : file.filePath,
+      defaultPath: resolvedDefaultPath,
+    })) as { canceled?: boolean; path?: string }
+
+    if (!result || result.canceled || !result.path) return null
+
+    if (updateFileFromPath || result.path !== file.filePath) {
+      const nextName = getFileNameFromPath(result.path)
+      onUpdateFile({
+        ...file,
+        filePath: result.path,
+        name: nextName,
+      })
+    }
+
+    showToast(toastLabel)
+    return result.path
+  }
+
+  return { saveWav }
 }
 
 function writeString(view: DataView, offset: number, str: string): void {

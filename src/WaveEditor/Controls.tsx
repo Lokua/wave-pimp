@@ -1,6 +1,6 @@
 import styled from '@emotion/styled'
 
-import IconButton from '../IconButton'
+import IconButton from '../components/IconButton'
 
 const Controls = styled.div`
   padding: 0 8px;

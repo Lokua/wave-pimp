@@ -1,8 +1,8 @@
 import styled from '@emotion/styled'
 import { useEffect } from 'react'
 
-import IconButton from './IconButton'
-import Select from './Select'
+import IconButton from './components/IconButton'
+import Select from './components/Select'
 import { BIT_DEPTHS, SAMPLE_RATES, Settings } from './types'
 
 const ModalOverlay = styled.div`
