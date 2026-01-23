@@ -12,15 +12,14 @@ const audioCtx = new AudioContext()
 const Container = styled.div`
   display: flex;
   flex-direction: column;
-  overflow: auto;
   height: 100vh;
-  padding: 24px;
-  padding-top: 0;
 `
 
 const Titlebar = styled.div`
   -webkit-app-region: drag;
   -webkit-user-select: none;
+  position: sticky;
+  top: 0;
   display: flex;
   align-items: center;
   padding-left: 80px;
@@ -28,13 +27,25 @@ const Titlebar = styled.div`
   height: 36px;
   text-align: center;
   user-select: none;
+  background: var(--bg-main);
+  z-index: 10;
+`
+
+const Content = styled.div`
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 24px;
+  padding-top: 12px;
 `
 
 const DropArea = styled.div<{ isDragActive: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-grow: 1;
+  flex: 1;
   padding: 24px;
   border: 1px dashed var(--text-color);
   text-align: center;
@@ -104,35 +115,37 @@ export default function App() {
   return (
     <Container>
       <Titlebar />
-      {files.length > 0 ? (
-        <>
-          {view === 'list' ? (
-            <Cards>
-              {files.map((file) => (
-                <WaveCard
-                  key={file.id}
+      <Content>
+        {files.length > 0 ? (
+          <>
+            {view === 'list' ? (
+              <Cards>
+                {files.map((file) => (
+                  <WaveCard
+                    key={file.id}
+                    file={file}
+                    audioContext={audioCtx}
+                    onEdit={onEditFile}
+                  />
+                ))}
+              </Cards>
+            ) : (
+              file && (
+                <WaveEditor
                   file={file}
                   audioContext={audioCtx}
-                  onEdit={onEditFile}
+                  onBack={onClickBack}
+                  onUpdateFile={updateFile}
                 />
-              ))}
-            </Cards>
-          ) : (
-            file && (
-              <WaveEditor
-                file={file}
-                audioContext={audioCtx}
-                onBack={onClickBack}
-                onUpdateFile={updateFile}
-              />
-            )
-          )}
-        </>
-      ) : (
-        <DropArea isDragActive={isDragActive} {...eventHandlers}>
-          Drop audio file(s)
-        </DropArea>
-      )}
+              )
+            )}
+          </>
+        ) : (
+          <DropArea isDragActive={isDragActive} {...eventHandlers}>
+            Drop audio file(s)
+          </DropArea>
+        )}
+      </Content>
     </Container>
   )
 }

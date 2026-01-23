@@ -8,7 +8,7 @@ import useAudioPlayback from './useAudioPlayback'
 import { buildPeaksCache, getVisiblePeaksFromCache } from './waveformPeaks'
 
 const Controls = styled.div`
-  padding: 0 32px;
+  padding: 0 8px;
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
@@ -19,7 +19,7 @@ const CanvasContainer = styled.div`
   display: flex;
   align-items: stretch;
   justify-content: center;
-  padding: 24px 32px;
+  padding: 24px 8px 12px;
   overflow: hidden;
 `
 
