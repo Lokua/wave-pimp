@@ -1,4 +1,4 @@
-type PlaybackStateSnapshot = {
+export type PlaybackStateSnapshot = {
   isPlaying: boolean
   currentTimeSeconds: number
   startOffsetSeconds: number
@@ -6,8 +6,8 @@ type PlaybackStateSnapshot = {
 }
 
 type AudioPlaybackOptions = {
-  audioContext?: AudioContext
-  onStateChange?: (state: PlaybackStateSnapshot) => void
+  audioContext: AudioContext
+  onStateChange: (state: PlaybackStateSnapshot) => void
 }
 
 type PlayOptions = {
@@ -16,17 +16,15 @@ type PlayOptions = {
 
 export default class AudioPlayback {
   private readonly audioContext: AudioContext
-  private readonly onStateChange?: (state: PlaybackStateSnapshot) => void
-
+  private readonly onStateChange: (state: PlaybackStateSnapshot) => void
   private audioBuffer: AudioBuffer | null = null
   private sourceNode: AudioBufferSourceNode | null = null
-
-  public isPlaying = false
-
   private startOffsetSeconds = 0
   private startTimeSeconds = 0
 
-  constructor({ audioContext, onStateChange }: AudioPlaybackOptions = {}) {
+  public isPlaying = false
+
+  constructor({ audioContext, onStateChange }: AudioPlaybackOptions) {
     this.audioContext = audioContext
     this.onStateChange = onStateChange
   }

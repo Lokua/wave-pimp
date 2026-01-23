@@ -5,16 +5,40 @@
 @media (prefers-color-scheme: light) {
   :root {
     --background-color: #fff;
-    --text-color: #222;
-    --selection-color: #b3d4fc;
+    --text-color: #000;
+    --selection-color: rgba(100, 149, 237, 0.15);
+    --bg-main: #fff;
+    --bg-canvas: #f8f8f8;
+    --bg-controls: #fff;
+    --border-color: #ccc;
+    --border-canvas: #333;
+    --button-bg: #fff;
+    --button-hover: #f0f0f0;
+    --button-active: #e0e0e0;
+    --waveform-color: #000;
+    --zero-line-color: #d0d0d0;
+    --separator-color: #999;
+    --cursor-color: #f00;
   }
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background-color: #1a1a1a;
-    --text-color: #ddd;
-    --selection-color: #b3d4fc;
+    --text-color: #e0e0e0;
+    --selection-color: rgba(100, 149, 237, 0.15);
+    --bg-main: #1a1a1a;
+    --bg-canvas: #0a0a0a;
+    --bg-controls: #1a1a1a;
+    --border-color: #444;
+    --border-canvas: #666;
+    --button-bg: #2a2a2a;
+    --button-hover: #333;
+    --button-active: #444;
+    --waveform-color: #d0d0d0;
+    --zero-line-color: #666;
+    --separator-color: #666;
+    --cursor-color: #ff6666;
   }
 }
 
@@ -31,7 +55,7 @@ html {
 }
 
 body {
-  background: var(--background-color);
+  background: var(--bg-main);
   color: var(--text-color);
   font-size: 12px;
   margin: 0;
@@ -42,4 +66,22 @@ body {
 
 #root {
   height: 100vh;
+}
+
+button {
+  padding: 8px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--button-bg);
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+button:hover {
+  background: var(--button-hover);
+}
+
+button:active {
+  background: var(--button-active);
 }

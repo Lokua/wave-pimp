@@ -5,6 +5,7 @@ import { parseBlob } from 'music-metadata'
 import { AudioFile } from './types'
 import useDropArea from './useDropArea'
 import WaveCard from './WaveCard'
+import WaveEditor from './WaveEditor'
 
 const audioCtx = new AudioContext()
 
@@ -84,6 +85,13 @@ export default function App() {
     setFile(file)
   }
 
+  function updateFile(next: AudioFile) {
+    setFile(next)
+    setFiles((prev) =>
+      prev.map((item) => (item.id === next.id ? next : item)),
+    )
+  }
+
   return (
     <Container>
       <Titlebar />
@@ -95,6 +103,7 @@ export default function App() {
                 <WaveCard
                   key={file.id}
                   file={file}
+                  audioContext={audioCtx}
                   onClick={() => {
                     onClickFile(file)
                   }}
@@ -104,7 +113,13 @@ export default function App() {
               ))}
             </div>
           ) : (
-            file && <div>Editing: {file.name}</div>
+            file && (
+              <WaveEditor
+                file={file}
+                audioContext={audioCtx}
+                onUpdateFile={updateFile}
+              />
+            )
           )}
         </>
       ) : (

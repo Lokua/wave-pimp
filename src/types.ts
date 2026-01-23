@@ -11,3 +11,22 @@ export interface AudioFile {
   buffer: ArrayBuffer
   audioBuffer: AudioBuffer
 }
+
+export type PeaksCacheLevel = {
+  blockSize: number
+  mins: Float32Array
+  maxs: Float32Array
+}
+
+export type PeaksCacheChannel = Array<PeaksCacheLevel>
+export type PeaksCache = Array<PeaksCacheChannel>
+
+export type VisiblePeaks = {
+  visibleMinPerChannel: Array<Float32Array>
+  visibleMaxPerChannel: Array<Float32Array>
+}
+
+export type SelectionRange = {
+  startSample: number | null
+  endSample: number | null
+}
