@@ -1,5 +1,5 @@
 import styled from '@emotion/styled'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import type { AudioFile, SelectionRange, Settings } from '../types'
 import Canvas from './Canvas'
@@ -11,6 +11,7 @@ import useEdits from './useEdits'
 import useEditorPlayback from './useEditorPlayback'
 import useSelection from './useSelection'
 import useViewport from './useViewport'
+import InfoPanel from './InfoPanel'
 
 const CanvasContainer = styled.div`
   flex: 1;
@@ -47,6 +48,7 @@ export default function Editor({
 }: WaveEditorProps) {
   const audioBuffer = file.audioBuffer
   const { message: toastMessage, showToast } = useToast()
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const { saveWav } = useSaveWav({
     file,
     settings,
@@ -62,6 +64,7 @@ export default function Editor({
 
   const nChannels = audioBuffer.numberOfChannels
   const sampleRate = audioBuffer.sampleRate
+  const durationSeconds = audioBuffer.duration
   const totalSamples = audioBuffer.getChannelData(0).length
 
   const {
@@ -162,6 +165,24 @@ export default function Editor({
   ])
 
   useEffect(() => {
+    let frame = 0
+    const updateElapsed = () => {
+      setElapsedSeconds(playbackRef.current.getCurrentTimeSeconds())
+      frame = requestAnimationFrame(updateElapsed)
+    }
+
+    if (isPlaying) {
+      frame = requestAnimationFrame(updateElapsed)
+      return () => cancelAnimationFrame(frame)
+    }
+
+    setElapsedSeconds(playbackRef.current.getCurrentTimeSeconds())
+    return () => {
+      if (frame) cancelAnimationFrame(frame)
+    }
+  }, [isPlaying, playbackRef, audioBuffer])
+
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== 'Escape') return
       onBack()
@@ -204,6 +225,8 @@ export default function Editor({
     <>
       <WaveEditorControls
         isPlaying={isPlaying}
+        elapsedSeconds={elapsedSeconds}
+        durationSeconds={durationSeconds}
         onClickPlay={onClickPlay}
         onClickStop={onClickStop}
         onClickZoomIn={onZoomIn}
@@ -241,6 +264,7 @@ export default function Editor({
           />
         </CanvasInteraction>
       </CanvasContainer>
+      <InfoPanel file={file} samplesPerPixel={samplesPerPixelRef.current} />
       <Toast message={toastMessage} />
     </>
   )

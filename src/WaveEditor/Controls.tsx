@@ -1,22 +1,36 @@
 import styled from '@emotion/styled'
 
 import IconButton from '../components/IconButton'
+import { formatDuration } from '../util'
 
 const Controls = styled.div`
   padding: 0 8px;
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
 `
 
 const Divider = styled.span`
   width: 1px;
+  height: 20px;
   background: var(--separator-color);
   margin: 0 8px;
 `
 
+const TimeDisplay = styled.span`
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  opacity: 0.7;
+  min-width: 72px;
+  text-align: right;
+`
+
 type WaveEditorControlsProps = {
   isPlaying: boolean
+  elapsedSeconds: number
+  durationSeconds: number
   onClickPlay: () => void
   onClickStop: () => void
   onClickZoomIn: () => void
@@ -36,6 +50,8 @@ type WaveEditorControlsProps = {
 
 export default function WaveEditorControls({
   isPlaying,
+  elapsedSeconds,
+  durationSeconds,
   onClickPlay,
   onClickStop,
   onClickZoomIn,
@@ -68,6 +84,9 @@ export default function WaveEditorControls({
         title={isPlaying ? 'Pause' : 'Stop'}
         onClick={onClickStop}
       />
+      <TimeDisplay>
+        {formatDuration(elapsedSeconds)}/{formatDuration(durationSeconds)}
+      </TimeDisplay>
       <Divider />
       <IconButton
         type="button"
