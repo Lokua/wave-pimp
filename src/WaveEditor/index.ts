@@ -1,5 +1,5 @@
 export { default } from './Editor'
 export { default as Canvas } from './Canvas'
 export { default as Controls } from './Controls'
-export { buildPeaksCache, getVisiblePeaksFromCache } from './peaks'
+export { getVisiblePeaksFromCache } from './peaks'
 export { drawCursor, drawWaveformBase } from './render'

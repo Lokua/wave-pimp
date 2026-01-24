@@ -252,12 +252,13 @@ ipcMain.handle(
     data: {
       channelData: Float32Array[]
       maxCacheWidth: number
+      options: { onlyLowestLevel: boolean }
     },
   ) => {
     try {
       console.time('[MAIN PROCESS] buildPeaksCache')
-      const { channelData, maxCacheWidth } = data
-      const peaksCache = buildPeaksCache(channelData, maxCacheWidth)
+      const { channelData, maxCacheWidth, options } = data
+      const peaksCache = buildPeaksCache(channelData, maxCacheWidth, options)
       console.timeEnd('[MAIN PROCESS] buildPeaksCache')
       return { peaksCache }
     } catch (error) {

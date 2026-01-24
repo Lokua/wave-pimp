@@ -1,11 +1,10 @@
-import { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
+import { forwardRef, useEffect, useRef, useState } from 'react'
 import styled from '@emotion/styled'
 
 import type { AudioFile, Settings, VisiblePeaks } from './types'
 import { formatDuration, formatSize } from './util'
 import {
   Canvas as WaveformCanvas,
-  buildPeaksCache,
   getVisiblePeaksFromCache,
 } from './WaveEditor'
 import useAudioPlayback from './useAudioPlayback'
@@ -164,11 +163,38 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
   const sampleRate = file.audioBuffer.sampleRate
   const totalSamples = file.audioBuffer.getChannelData(0).length
 
-  function buildCache() {
-    return buildPeaksCache(file.audioBuffer, MAX_CACHE_WIDTH)
-  }
+  const [peaksCache, setPeaksCache] = useState(null)
 
-  const peaksCache = useMemo(buildCache, [file])
+  useEffect(() => {
+    let cancelled = false
+    async function buildPeaksAsync() {
+      const label = file.name
+      console.time(`[PERF] "${label}" buildPeaksCache (WaveCard)`)
+      try {
+        const channelData = []
+        for (let i = 0; i < file.audioBuffer.numberOfChannels; i++) {
+          channelData.push(file.audioBuffer.getChannelData(i))
+        }
+        const result = await window.electron.invoke('build-peaks-cache', {
+          channelData,
+          maxCacheWidth: MAX_CACHE_WIDTH,
+          options: {
+            onlyLowestLevel: true,
+          },
+        })
+        if (!cancelled) {
+          setPeaksCache(result.peaksCache)
+          console.timeEnd(`[PERF] "${label}" buildPeaksCache (WaveCard)`)
+        }
+      } catch (error) {
+        console.error('Failed to build peaks cache:', error)
+      }
+    }
+    buildPeaksAsync()
+    return () => {
+      cancelled = true
+    }
+  }, [file])
 
   useEffect(() => {
     playbackRef.current.stop()
@@ -206,7 +232,7 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
   }, [samplesPerPixel])
 
   useEffect(() => {
-    if (canvasWidth <= 0) return
+    if (canvasWidth <= 0 || !peaksCache) return
     let nextSamplesPerPixel = totalSamples / canvasWidth
     if (nextSamplesPerPixel < 1) nextSamplesPerPixel = 1
 

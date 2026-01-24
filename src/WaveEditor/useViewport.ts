@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { PeaksCache, VisiblePeaks } from '../types'
-import { buildPeaksCache, getVisiblePeaksFromCache } from './peaks'
+import { getVisiblePeaksFromCache } from './peaks'
 
 type UseViewportArgs = {
   audioBuffer: AudioBuffer
@@ -34,7 +34,7 @@ export default function useViewport({
 
     async function buildPeaksAsync() {
       setIsLoadingPeaks(true)
-      console.time('[PERF] buildPeaksCache (async)')
+      console.time('[PERF] buildPeaksCache (Editor useViewport)')
 
       try {
         const channelData: Float32Array[] = []
@@ -45,20 +45,21 @@ export default function useViewport({
         const result = await window.electron.invoke('build-peaks-cache', {
           channelData,
           maxCacheWidth,
+          options: {
+            onlyLowestLevel: false,
+          },
         })
 
+        console.log('result.peaksCache:', result.peaksCache)
+
         if (!cancelled) {
-          console.timeEnd('[PERF] buildPeaksCache (async)')
+          console.timeEnd('[PERF] buildPeaksCache (Editor useViewport)')
           setPeaksCache(result.peaksCache)
           setIsLoadingPeaks(false)
         }
       } catch (error) {
         console.error('Failed to build peaks cache:', error)
-        console.time('[PERF] buildPeaksCache (fallback)')
-        const cache = buildPeaksCache(audioBuffer, maxCacheWidth)
-        console.timeEnd('[PERF] buildPeaksCache (fallback)')
         if (!cancelled) {
-          setPeaksCache(cache)
           setIsLoadingPeaks(false)
         }
       }
