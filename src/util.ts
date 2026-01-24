@@ -1,5 +1,8 @@
 const SIZE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const
 
+// `navigator.platform` is deprecated but only supported in Chromium
+export const isMac = navigator.platform.toLowerCase().includes('mac')
+
 export function formatSize(bytes: number): string {
   let size = bytes
   let unitIndex = 0

@@ -397,6 +397,7 @@ function paintDotLine(
     ctx.fill()
   }
 }
+
 function readCssVar(name: string) {
   return getComputedStyle(document.documentElement).getPropertyValue(name)
 }

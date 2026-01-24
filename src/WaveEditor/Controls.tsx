@@ -1,7 +1,7 @@
 import styled from '@emotion/styled'
 
 import IconButton from '../components/IconButton'
-import { formatDuration } from '../util'
+import { formatDuration, isMac } from '../util'
 
 const Controls = styled.div`
   padding: 0 8px;
@@ -72,20 +72,21 @@ export default function WaveEditorControls({
   canZoomIn,
   canZoomOut,
 }: WaveEditorControlsProps) {
+  const metaKeyLabel = isMac ? 'Cmd' : 'Ctrl'
   return (
     <Controls>
       <IconButton
         type="button"
         name="Play"
         aria-label="Play"
-        title="Play"
+        title="Play (Space)"
         onClick={onClickPlay}
       />
       <IconButton
         type="button"
         name={isPlaying ? 'Pause' : 'Stop'}
         aria-label={isPlaying ? 'Pause' : 'Stop'}
-        title={isPlaying ? 'Pause' : 'Stop'}
+        title={`${isPlaying ? 'Pause' : 'Stop'} (Space)`}
         onClick={onClickStop}
       />
       <TimeDisplay>
@@ -96,7 +97,7 @@ export default function WaveEditorControls({
         type="button"
         name="ZoomIn"
         aria-label="Zoom in"
-        title="Zoom in"
+        title="Zoom in (])"
         onClick={onClickZoomIn}
         disabled={!canZoomIn}
       />
@@ -104,7 +105,7 @@ export default function WaveEditorControls({
         type="button"
         name="ZoomOut"
         aria-label="Zoom out"
-        title="Zoom out"
+        title="Zoom out ([)"
         onClick={onClickZoomOut}
         disabled={!canZoomOut}
       />
@@ -120,14 +121,14 @@ export default function WaveEditorControls({
         type="button"
         name="SelectFromStart"
         aria-label="Select From Start"
-        title="Select from start"
+        title={`Select from start (${metaKeyLabel}+Left)`}
         onClick={onClickSelectToStart}
       />
       <IconButton
         type="button"
         name="SelectToEnd"
         aria-label="Select To End"
-        title="Select to end"
+        title={`Select to end (${metaKeyLabel}+Right)`}
         onClick={onClickSelectToEnd}
       />
       <Divider />
@@ -135,35 +136,35 @@ export default function WaveEditorControls({
         type="button"
         name="Crop"
         aria-label="Crop"
-        title="Crop"
+        title="Crop (K)"
         onClick={onClickCrop}
       />
       <IconButton
         type="button"
         name="Trim"
         aria-label="Trim"
-        title="Trim"
+        title="Trim (X)"
         onClick={onClickTrim}
       />
       <IconButton
         type="button"
         name="FadeIn"
         aria-label="Fade in"
-        title="Fade in"
+        title="Fade in (F)"
         onClick={onClickFadeIn}
       />
       <IconButton
         type="button"
         name="FadeOut"
         aria-label="Fade out"
-        title="Fade out"
+        title="Fade out (V)"
         onClick={onClickFadeOut}
       />
       <IconButton
         type="button"
         name="Normalize"
         aria-label="Normalize"
-        title="Normalize"
+        title="Normalize (N)"
         onClick={onClickNormalize}
       />
       <Divider />
@@ -171,14 +172,14 @@ export default function WaveEditorControls({
         type="button"
         name="Save"
         aria-label="Save"
-        title="Save"
+        title={`Save (${metaKeyLabel}+S)`}
         onClick={onClickSave}
       />
       <IconButton
         type="button"
         name="SaveAs"
         aria-label="Save As"
-        title="Save As"
+        title={`Save As (${metaKeyLabel}+Shift+S)`}
         onClick={onClickSaveAs}
       />
       <IconButton

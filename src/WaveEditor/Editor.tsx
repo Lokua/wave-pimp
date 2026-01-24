@@ -1,11 +1,12 @@
 import styled from '@emotion/styled'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { AudioFile, SelectionRange, Settings } from '../types'
 import Canvas from './Canvas'
 import Toast from '../components/Toast'
 import useToast from '../components/useToast'
 import { useSaveWav } from '../export'
+import { isMac } from '../util'
 import WaveEditorControls from './Controls'
 import useEdits from './useEdits'
 import useEditorPlayback from './useEditorPlayback'
@@ -184,44 +185,154 @@ export default function Editor({
     }
   }, [isPlaying, playbackRef, audioBuffer])
 
+  const onClickSelectToStart = useCallback(() => {
+    const cursorSample = getCursorSample() ?? 0
+    setSelection({
+      startSample: 0,
+      endSample: cursorSample,
+    })
+    seekToSample(0)
+  }, [getCursorSample, seekToSample, setSelection])
+
+  const onClickSelectToEnd = useCallback(() => {
+    const cursorSample = getCursorSample() ?? 0
+    setSelection({
+      startSample: cursorSample,
+      endSample: totalSamples,
+    })
+    seekToSample(cursorSample)
+  }, [getCursorSample, seekToSample, setSelection, totalSamples])
+
+  const onClickSave = useCallback(() => {
+    const forceDialog = !file.filePath
+    void saveWav({
+      forceDialog,
+      toastLabel: 'Saved',
+    })
+  }, [file.filePath, saveWav])
+
+  const onClickSaveAs = useCallback(() => {
+    void saveWav({
+      forceDialog: true,
+      toastLabel: 'Saved As',
+    })
+  }, [saveWav])
+
   useEffect(() => {
+    function isEditableTarget(target: EventTarget | null) {
+      if (!(target instanceof HTMLElement)) return false
+      return (
+        target.isContentEditable ||
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT'
+      )
+    }
+
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== 'Escape') return
-      onBack()
+      if (isEditableTarget(event.target)) return
+
+      const key = event.code === 'Space' ? 'space' : event.key.toLowerCase()
+      const isMetaKey = isMac ? event.metaKey : event.ctrlKey
+      const hasModifier = event.metaKey || event.ctrlKey || event.altKey
+
+      switch (key) {
+        case 'escape':
+          onBack()
+          return
+        case 'arrowleft':
+          if (!isMetaKey) return
+          event.preventDefault()
+          onClickSelectToStart()
+          return
+        case 'arrowright':
+          if (!isMetaKey) return
+          event.preventDefault()
+          onClickSelectToEnd()
+          return
+        case 's':
+          if (!isMetaKey) return
+          event.preventDefault()
+          if (event.shiftKey) {
+            onClickSaveAs()
+          } else {
+            onClickSave()
+          }
+          return
+        case 'space':
+          if (hasModifier) return
+          event.preventDefault()
+          if (isPlaying) {
+            onClickStop()
+          } else {
+            onClickPlay()
+          }
+          return
+        case '[':
+          if (hasModifier) return
+          if (!canZoomOut) return
+          event.preventDefault()
+          onZoomOut()
+          return
+        case ']':
+          if (hasModifier) return
+          if (!canZoomIn) return
+          event.preventDefault()
+          onZoomIn()
+          return
+        case 'x':
+          if (hasModifier) return
+          event.preventDefault()
+          trim()
+          return
+        case 'k':
+          if (hasModifier) return
+          event.preventDefault()
+          crop()
+          return
+        case 'f':
+          if (hasModifier) return
+          event.preventDefault()
+          fadeIn()
+          return
+        case 'v':
+          if (hasModifier) return
+          event.preventDefault()
+          fadeOut()
+          return
+        case 'n':
+          if (hasModifier) return
+          event.preventDefault()
+          normalize()
+          return
+        default:
+          return
+      }
     }
 
     document.addEventListener('keydown', onKeyDown)
     return () => {
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [onBack])
-
-  function onClickSelectToStart() {
-    const cursorSample = getCursorSample() ?? 0
-    setSelection({ startSample: 0, endSample: cursorSample })
-    seekToSample(0)
-  }
-
-  function onClickSelectToEnd() {
-    const cursorSample = getCursorSample() ?? 0
-    setSelection({ startSample: cursorSample, endSample: totalSamples })
-    seekToSample(cursorSample)
-  }
-
-  function onClickSave() {
-    const forceDialog = !file.filePath
-    void saveWav({
-      forceDialog,
-      toastLabel: 'Saved',
-    })
-  }
-
-  function onClickSaveAs() {
-    void saveWav({
-      forceDialog: true,
-      toastLabel: 'Saved As',
-    })
-  }
+  }, [
+    canZoomIn,
+    canZoomOut,
+    crop,
+    fadeIn,
+    fadeOut,
+    isPlaying,
+    normalize,
+    onBack,
+    onClickPlay,
+    onClickSave,
+    onClickSaveAs,
+    onClickStop,
+    onClickSelectToEnd,
+    onClickSelectToStart,
+    onZoomIn,
+    onZoomOut,
+    trim,
+  ])
 
   return (
     <>
