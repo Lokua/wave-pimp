@@ -1,4 +1,11 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  type MenuItemConstructorOptions,
+} from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
@@ -41,88 +48,92 @@ function sendOpenSettings() {
 
 function createAppMenu() {
   const isMac = process.platform === 'darwin'
-  const template = [
-    ...(isMac
-      ? [
-          {
-            label: app.name,
-            submenu: [
-              { role: 'about' },
-              { type: 'separator' },
-              {
-                label: 'Settings...',
-                accelerator: 'CmdOrCtrl+,',
-                click: sendOpenSettings,
-              },
-              { type: 'separator' },
-              { role: 'services' },
-              { type: 'separator' },
-              { role: 'hide' },
-              { role: 'hideOthers' },
-              { role: 'unhide' },
-              { type: 'separator' },
-              { role: 'quit' },
-            ],
-          },
-        ]
-      : [
-          {
-            label: 'File',
-            submenu: [
-              {
-                label: 'Settings...',
-                accelerator: 'CmdOrCtrl+,',
-                click: sendOpenSettings,
-              },
-              { type: 'separator' },
-              { role: 'quit' },
-            ],
-          },
-        ]),
-    {
-      label: 'Edit',
-      submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
-        { type: 'separator' },
-        { role: 'cut' },
-        { role: 'copy' },
-        { role: 'paste' },
-        ...(isMac
-          ? [
-              { role: 'pasteAndMatchStyle' },
-              { role: 'delete' },
-              { role: 'selectAll' },
-              { type: 'separator' },
-              { role: 'speech' },
-            ]
-          : [{ role: 'delete' }, { type: 'separator' }, { role: 'selectAll' }]),
-      ],
-    },
-    {
-      label: 'View',
-      submenu: [
-        { role: 'reload' },
-        { role: 'forceReload' },
-        { role: 'toggleDevTools' },
-        { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
-        { type: 'separator' },
-        { role: 'togglefullscreen' },
-      ],
-    },
-    {
-      label: 'Window',
-      submenu: [
-        { role: 'minimize' },
-        { role: 'zoom' },
-        ...(isMac
-          ? [{ type: 'separator' }, { role: 'front' }]
-          : [{ role: 'close' }]),
-      ],
-    },
+  const appMenu: MenuItemConstructorOptions = {
+    label: app.name,
+    submenu: [
+      { role: 'about' },
+      { type: 'separator' },
+      {
+        label: 'Settings...',
+        accelerator: 'CmdOrCtrl+,',
+        click: sendOpenSettings,
+      },
+      { type: 'separator' },
+      { role: 'services' },
+      { type: 'separator' },
+      { role: 'hide' },
+      { role: 'hideOthers' },
+      { role: 'unhide' },
+      { type: 'separator' },
+      { role: 'quit' },
+    ] as MenuItemConstructorOptions[],
+  }
+
+  const fileMenu: MenuItemConstructorOptions = {
+    label: 'File',
+    submenu: [
+      {
+        label: 'Settings...',
+        accelerator: 'CmdOrCtrl+,',
+        click: sendOpenSettings,
+      },
+      { type: 'separator' },
+      { role: 'quit' },
+    ] as MenuItemConstructorOptions[],
+  }
+
+  const editMenu: MenuItemConstructorOptions = {
+    label: 'Edit',
+    submenu: [
+      { role: 'undo' },
+      { role: 'redo' },
+      { type: 'separator' },
+      { role: 'cut' },
+      { role: 'copy' },
+      { role: 'paste' },
+      ...(isMac
+        ? [
+            { role: 'pasteAndMatchStyle' },
+            { role: 'delete' },
+            { role: 'selectAll' },
+            { type: 'separator' },
+            { role: 'speech' },
+          ]
+        : [{ role: 'delete' }, { type: 'separator' }, { role: 'selectAll' }]),
+    ] as MenuItemConstructorOptions[],
+  }
+
+  const viewMenu: MenuItemConstructorOptions = {
+    label: 'View',
+    submenu: [
+      { role: 'reload' },
+      { role: 'forceReload' },
+      { role: 'toggleDevTools' },
+      { type: 'separator' },
+      { role: 'resetZoom' },
+      { role: 'zoomIn' },
+      { role: 'zoomOut' },
+      { type: 'separator' },
+      { role: 'togglefullscreen' },
+    ] as MenuItemConstructorOptions[],
+  }
+
+  const windowMenu: MenuItemConstructorOptions = {
+    label: 'Window',
+    submenu: [
+      { role: 'minimize' },
+      { role: 'zoom' },
+      ...(isMac
+        ? [{ type: 'separator' }, { role: 'front' }]
+        : [{ role: 'close' }]),
+    ] as MenuItemConstructorOptions[],
+  }
+
+  const template: MenuItemConstructorOptions[] = [
+    ...(isMac ? [appMenu] : [fileMenu]),
+    editMenu,
+    viewMenu,
+    windowMenu,
   ]
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
@@ -133,8 +144,8 @@ function createWindow() {
     icon: path.join(process.env.VITE_PUBLIC, 'icons/vmc.png'),
     width: 1200,
     height: 800,
-    minWidth: 800,
-    minHeight: 600,
+    minWidth: 400,
+    minHeight: 400,
     backgroundColor: '#1a1a1a',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 10, y: 10 },
@@ -221,7 +232,9 @@ ipcMain.handle(
         savePath = result.filePath
       }
 
-      const buffer = Buffer.from(bytes)
+      const buffer = Buffer.from(
+        bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes),
+      )
       await fs.writeFile(savePath, buffer)
       return { canceled: false, path: savePath }
     } catch (error) {
