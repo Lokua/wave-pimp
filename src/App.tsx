@@ -55,12 +55,39 @@ const DropArea = styled.div<{ isDragActive: boolean }>`
   transition: background 0.15s;
 `
 
+const LoadingOverlay = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--text-color);
+  opacity: 0.7;
+`
+
+const LoadingSpinner = styled.div`
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--text-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+`
+
 export default function App() {
   const [view, setView] = useState('list')
   const [file, setFile] = useState<AudioFile | null>(null)
   const [files, setFiles] = useState<AudioFile[]>([])
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false)
   const [settings, setSettings] = useState<Settings>({
     sampleRate: 48000,
     bitDepth: 24,
@@ -69,16 +96,16 @@ export default function App() {
     console.time('[PERF] Total file drop')
     console.log(`[PERF] Starting file drop for ${files.length} file(s)`)
 
+    setIsLoadingFiles(true)
     setFiles(
       await Promise.all(
         files.map(async (file) => {
-          const fileLabel = `[PERF] ${file.name}`
-          console.time(fileLabel)
-          console.log(`${fileLabel} - ${(file.size / 1024 / 1024).toFixed(2)} MB`)
+          const fileLabel = `[PERF] "${file.name}"`
+          console.log(
+            `${fileLabel} - ${(file.size / 1024 / 1024).toFixed(2)} MB`,
+          )
 
-          console.time(`${fileLabel} - Metadata parsing`)
           const metadata = await parseBlob(file)
-          console.timeEnd(`${fileLabel} - Metadata parsing`)
 
           const filePath = (file as File & { path?: string }).path
           if (
@@ -90,15 +117,11 @@ export default function App() {
             throw new Error('Invalid or unsupported audio file')
           }
 
-          console.time(`${fileLabel} - ArrayBuffer conversion`)
           const buffer = await file.arrayBuffer()
-          console.timeEnd(`${fileLabel} - ArrayBuffer conversion`)
 
           console.time(`${fileLabel} - Audio decoding`)
           const audioBuffer = await audioCtx.decodeAudioData(buffer)
           console.timeEnd(`${fileLabel} - Audio decoding`)
-
-          console.timeEnd(fileLabel)
 
           return {
             id: crypto.randomUUID(),
@@ -116,6 +139,7 @@ export default function App() {
         }),
       ),
     )
+    setIsLoadingFiles(false)
 
     console.timeEnd('[PERF] Total file drop')
   })
@@ -177,7 +201,12 @@ export default function App() {
     <Container>
       <Titlebar />
       <Content>
-        {files.length ? (
+        {isLoadingFiles ? (
+          <LoadingOverlay>
+            <LoadingSpinner />
+            <div>Loading audio file(s)...</div>
+          </LoadingOverlay>
+        ) : files.length ? (
           <>
             {view === 'list' ? (
               <WaveGrid

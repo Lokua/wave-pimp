@@ -39,6 +39,8 @@ const LoadingOverlay = styled.div`
   gap: 16px;
   color: var(--text-color);
   opacity: 0.7;
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-canvas);
 `
 
 const LoadingSpinner = styled.div`
@@ -73,8 +75,6 @@ export default function Editor({
   onBack,
   onUpdateFile,
 }: WaveEditorProps) {
-  console.time('[PERF] Editor mount')
-
   const audioBuffer = file.audioBuffer
   const { message: toastMessage, showToast } = useToast()
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
@@ -96,9 +96,6 @@ export default function Editor({
   const durationSeconds = audioBuffer.duration
   const totalSamples = audioBuffer.getChannelData(0).length
 
-  console.log(`[PERF] Editor - ${file.name}: ${nChannels}ch, ${sampleRate}Hz, ${totalSamples} samples`)
-
-  console.time('[PERF] Editor - useEditorPlayback')
   const {
     playbackRef,
     isPlaying,
@@ -112,9 +109,7 @@ export default function Editor({
     sampleRate,
     selectionRef,
   })
-  console.timeEnd('[PERF] Editor - useEditorPlayback')
 
-  console.time('[PERF] Editor - useViewport')
   const {
     canvasRevision,
     isLoadingPeaks,
@@ -137,9 +132,7 @@ export default function Editor({
     maxCacheWidth: MAX_CACHE_WIDTH,
     getCursorSample,
   })
-  console.timeEnd('[PERF] Editor - useViewport')
 
-  console.time('[PERF] Editor - useSelection')
   const {
     setSelection,
     onClickCanvas,
@@ -157,9 +150,7 @@ export default function Editor({
     bumpCanvasRevision,
     seekToSample,
   })
-  console.timeEnd('[PERF] Editor - useSelection')
 
-  console.time('[PERF] Editor - useEdits')
   const { crop, trim, fadeIn, fadeOut, normalize } = useEdits({
     file,
     audioContext,
@@ -183,9 +174,9 @@ export default function Editor({
       preserveSelectionOnNextBufferRef.current = value
     },
   })
-  console.timeEnd('[PERF] Editor - useEdits')
 
   useEffect(() => {
+    console.time('[PERF] Editor mount')
     const preserveSelection = preserveSelectionOnNextBufferRef.current
     preserveSelectionOnNextBufferRef.current = false
     playbackRef.current.stop()
@@ -197,10 +188,7 @@ export default function Editor({
         endSample: null,
       })
     }
-    console.time('[PERF] Editor - recalculateVisiblePeaks')
     recalculateVisiblePeaks()
-    console.timeEnd('[PERF] Editor - recalculateVisiblePeaks')
-
     console.timeEnd('[PERF] Editor mount')
   }, [
     audioBuffer,
@@ -402,20 +390,20 @@ export default function Editor({
         canZoomOut={canZoomOut}
       />
       <CanvasContainer>
-        {isLoadingPeaks ? (
-          <LoadingOverlay>
-            <LoadingSpinner />
-            <div>Loading waveform...</div>
-          </LoadingOverlay>
-        ) : (
-          <CanvasInteraction
-            onClick={onClickCanvas}
-            onMouseDown={onMouseDown}
-            onMouseMove={onMouseMove}
-            onMouseUp={onMouseUp}
-            onMouseLeave={onMouseLeave}
-            onWheel={onWheel}
-          >
+        <CanvasInteraction
+          onClick={onClickCanvas}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseLeave}
+          onWheel={onWheel}
+        >
+          {isLoadingPeaks ? (
+            <LoadingOverlay>
+              <LoadingSpinner />
+              <div>Loading waveform...</div>
+            </LoadingOverlay>
+          ) : (
             <Canvas
               nChannels={nChannels}
               visiblePeaks={visiblePeaksRef.current}
@@ -426,8 +414,8 @@ export default function Editor({
               getCursorSample={getCursorSample}
               onResize={onResize}
             />
-          </CanvasInteraction>
-        )}
+          )}
+        </CanvasInteraction>
       </CanvasContainer>
       <InfoPanel file={file} samplesPerPixel={samplesPerPixelRef.current} />
       <Toast message={toastMessage} />

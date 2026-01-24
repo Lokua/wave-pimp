@@ -78,15 +78,11 @@ export default function useViewport({
   const recalculateVisiblePeaks = useCallback(() => {
     if (!peaksCache) return
 
-    console.time('[PERF] recalculateVisiblePeaks')
     const canvasWidth = canvasWidthRef.current
     const zoomLevel = zoomLevelRef.current
     const viewStartSample = viewStartSampleRef.current
 
-    if (canvasWidth <= 0) {
-      console.timeEnd('[PERF] recalculateVisiblePeaks')
-      return
-    }
+    if (canvasWidth <= 0) return
 
     const nextSamplesPerPixel = totalSamples / (canvasWidth * zoomLevel)
 
@@ -99,7 +95,6 @@ export default function useViewport({
     }
 
     const viewEndSample = clampedViewStart + visibleSamples
-    console.time('[PERF] getVisiblePeaksFromCache')
     const peaks = getVisiblePeaksFromCache({
       peakCachePerChannel: peaksCache,
       nChannels,
@@ -109,12 +104,9 @@ export default function useViewport({
       canvasWidth,
     })
 
-    console.timeEnd('[PERF] getVisiblePeaksFromCache')
-
     samplesPerPixelRef.current = nextSamplesPerPixel
     visiblePeaksRef.current = peaks
     bumpCanvasRevision()
-    console.timeEnd('[PERF] recalculateVisiblePeaks')
   }, [bumpCanvasRevision, nChannels, peaksCache, totalSamples])
 
   useEffect(() => {

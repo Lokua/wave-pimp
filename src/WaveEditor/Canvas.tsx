@@ -104,26 +104,12 @@ export default function WaveformCanvas({
   }, [width, height])
 
   useEffect(() => {
-    console.time('[PERF] Canvas render')
     const ctx = baseCtxRef.current
-    if (!ctx) {
-      console.timeEnd('[PERF] Canvas render')
-      return
-    }
-    if (width <= 0 || height <= 0) {
-      console.timeEnd('[PERF] Canvas render')
-      return
-    }
-    if (visiblePeaks.visibleMinPerChannel.length < nChannels) {
-      console.timeEnd('[PERF] Canvas render')
-      return
-    }
-    if (visiblePeaks.visibleMaxPerChannel.length < nChannels) {
-      console.timeEnd('[PERF] Canvas render')
-      return
-    }
+    if (!ctx) return
+    if (width <= 0 || height <= 0) return
+    if (visiblePeaks.visibleMinPerChannel.length < nChannels) return
+    if (visiblePeaks.visibleMaxPerChannel.length < nChannels) return
 
-    console.time('[PERF] drawWaveformBase')
     drawWaveformBase(ctx, {
       cssWidth: width,
       cssHeight: height,
@@ -133,8 +119,6 @@ export default function WaveformCanvas({
       visiblePeaks,
       selection,
     })
-    console.timeEnd('[PERF] drawWaveformBase')
-    console.timeEnd('[PERF] Canvas render')
   }, [
     canvasRevision,
     height,
