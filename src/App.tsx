@@ -66,10 +66,20 @@ export default function App() {
     bitDepth: 24,
   })
   const { isDragActive, eventHandlers } = useDropArea(async (files) => {
+    console.time('[PERF] Total file drop')
+    console.log(`[PERF] Starting file drop for ${files.length} file(s)`)
+
     setFiles(
       await Promise.all(
         files.map(async (file) => {
+          const fileLabel = `[PERF] ${file.name}`
+          console.time(fileLabel)
+          console.log(`${fileLabel} - ${(file.size / 1024 / 1024).toFixed(2)} MB`)
+
+          console.time(`${fileLabel} - Metadata parsing`)
           const metadata = await parseBlob(file)
+          console.timeEnd(`${fileLabel} - Metadata parsing`)
+
           const filePath = (file as File & { path?: string }).path
           if (
             metadata.format.duration == null ||
@@ -79,8 +89,17 @@ export default function App() {
           ) {
             throw new Error('Invalid or unsupported audio file')
           }
+
+          console.time(`${fileLabel} - ArrayBuffer conversion`)
           const buffer = await file.arrayBuffer()
+          console.timeEnd(`${fileLabel} - ArrayBuffer conversion`)
+
+          console.time(`${fileLabel} - Audio decoding`)
           const audioBuffer = await audioCtx.decodeAudioData(buffer)
+          console.timeEnd(`${fileLabel} - Audio decoding`)
+
+          console.timeEnd(fileLabel)
+
           return {
             id: crypto.randomUUID(),
             name: file.name,
@@ -97,6 +116,8 @@ export default function App() {
         }),
       ),
     )
+
+    console.timeEnd('[PERF] Total file drop')
   })
 
   function onEditFile(file: AudioFile) {

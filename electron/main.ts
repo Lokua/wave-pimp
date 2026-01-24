@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import contextMenu from 'electron-context-menu'
+import { buildPeaksCache } from './peaksBuilder'
 
 // const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -239,6 +240,28 @@ ipcMain.handle(
       return { canceled: false, path: savePath }
     } catch (error) {
       console.error('Failed to save WAV:', error)
+      throw error
+    }
+  },
+)
+
+ipcMain.handle(
+  'build-peaks-cache',
+  async (
+    _,
+    data: {
+      channelData: Float32Array[]
+      maxCacheWidth: number
+    },
+  ) => {
+    try {
+      console.time('[MAIN PROCESS] buildPeaksCache')
+      const { channelData, maxCacheWidth } = data
+      const peaksCache = buildPeaksCache(channelData, maxCacheWidth)
+      console.timeEnd('[MAIN PROCESS] buildPeaksCache')
+      return { peaksCache }
+    } catch (error) {
+      console.error('Failed to build peaks cache:', error)
       throw error
     }
   },

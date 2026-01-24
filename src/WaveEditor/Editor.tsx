@@ -30,6 +30,32 @@ const CanvasInteraction = styled.div`
   justify-content: center;
 `
 
+const LoadingOverlay = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--text-color);
+  opacity: 0.7;
+`
+
+const LoadingSpinner = styled.div`
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--text-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+`
+
 const MAX_CACHE_WIDTH = 7680
 
 type WaveEditorProps = {
@@ -47,6 +73,8 @@ export default function Editor({
   onBack,
   onUpdateFile,
 }: WaveEditorProps) {
+  console.time('[PERF] Editor mount')
+
   const audioBuffer = file.audioBuffer
   const { message: toastMessage, showToast } = useToast()
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
@@ -68,6 +96,9 @@ export default function Editor({
   const durationSeconds = audioBuffer.duration
   const totalSamples = audioBuffer.getChannelData(0).length
 
+  console.log(`[PERF] Editor - ${file.name}: ${nChannels}ch, ${sampleRate}Hz, ${totalSamples} samples`)
+
+  console.time('[PERF] Editor - useEditorPlayback')
   const {
     playbackRef,
     isPlaying,
@@ -81,9 +112,12 @@ export default function Editor({
     sampleRate,
     selectionRef,
   })
+  console.timeEnd('[PERF] Editor - useEditorPlayback')
 
+  console.time('[PERF] Editor - useViewport')
   const {
     canvasRevision,
+    isLoadingPeaks,
     visiblePeaksRef,
     canvasWidthRef,
     viewStartSampleRef,
@@ -103,7 +137,9 @@ export default function Editor({
     maxCacheWidth: MAX_CACHE_WIDTH,
     getCursorSample,
   })
+  console.timeEnd('[PERF] Editor - useViewport')
 
+  console.time('[PERF] Editor - useSelection')
   const {
     setSelection,
     onClickCanvas,
@@ -121,7 +157,9 @@ export default function Editor({
     bumpCanvasRevision,
     seekToSample,
   })
+  console.timeEnd('[PERF] Editor - useSelection')
 
+  console.time('[PERF] Editor - useEdits')
   const { crop, trim, fadeIn, fadeOut, normalize } = useEdits({
     file,
     audioContext,
@@ -145,6 +183,7 @@ export default function Editor({
       preserveSelectionOnNextBufferRef.current = value
     },
   })
+  console.timeEnd('[PERF] Editor - useEdits')
 
   useEffect(() => {
     const preserveSelection = preserveSelectionOnNextBufferRef.current
@@ -158,7 +197,11 @@ export default function Editor({
         endSample: null,
       })
     }
+    console.time('[PERF] Editor - recalculateVisiblePeaks')
     recalculateVisiblePeaks()
+    console.timeEnd('[PERF] Editor - recalculateVisiblePeaks')
+
+    console.timeEnd('[PERF] Editor mount')
   }, [
     audioBuffer,
     playbackRef,
@@ -359,25 +402,32 @@ export default function Editor({
         canZoomOut={canZoomOut}
       />
       <CanvasContainer>
-        <CanvasInteraction
-          onClick={onClickCanvas}
-          onMouseDown={onMouseDown}
-          onMouseMove={onMouseMove}
-          onMouseUp={onMouseUp}
-          onMouseLeave={onMouseLeave}
-          onWheel={onWheel}
-        >
-          <Canvas
-            nChannels={nChannels}
-            visiblePeaks={visiblePeaksRef.current}
-            viewStartSample={viewStartSampleRef.current}
-            samplesPerPixel={samplesPerPixelRef.current}
-            selection={selectionRef.current}
-            canvasRevision={canvasRevision}
-            getCursorSample={getCursorSample}
-            onResize={onResize}
-          />
-        </CanvasInteraction>
+        {isLoadingPeaks ? (
+          <LoadingOverlay>
+            <LoadingSpinner />
+            <div>Loading waveform...</div>
+          </LoadingOverlay>
+        ) : (
+          <CanvasInteraction
+            onClick={onClickCanvas}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseLeave}
+            onWheel={onWheel}
+          >
+            <Canvas
+              nChannels={nChannels}
+              visiblePeaks={visiblePeaksRef.current}
+              viewStartSample={viewStartSampleRef.current}
+              samplesPerPixel={samplesPerPixelRef.current}
+              selection={selectionRef.current}
+              canvasRevision={canvasRevision}
+              getCursorSample={getCursorSample}
+              onResize={onResize}
+            />
+          </CanvasInteraction>
+        )}
       </CanvasContainer>
       <InfoPanel file={file} samplesPerPixel={samplesPerPixelRef.current} />
       <Toast message={toastMessage} />

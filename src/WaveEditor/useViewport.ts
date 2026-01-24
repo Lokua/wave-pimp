@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { VisiblePeaks } from '../types'
+import type { PeaksCache, VisiblePeaks } from '../types'
 import { buildPeaksCache, getVisiblePeaksFromCache } from './peaks'
 
 type UseViewportArgs = {
@@ -15,6 +15,8 @@ export default function useViewport({
   getCursorSample,
 }: UseViewportArgs) {
   const [canvasRevision, setCanvasRevision] = useState(0)
+  const [isLoadingPeaks, setIsLoadingPeaks] = useState(true)
+  const [peaksCache, setPeaksCache] = useState<PeaksCache | null>(null)
   const canvasWidthRef = useRef(0)
   const zoomLevelRef = useRef(1)
   const viewStartSampleRef = useRef(0)
@@ -27,21 +29,64 @@ export default function useViewport({
   const nChannels = audioBuffer.numberOfChannels
   const totalSamples = audioBuffer.getChannelData(0).length
 
-  const peaksCache = useMemo(
-    () => buildPeaksCache(audioBuffer, maxCacheWidth),
-    [audioBuffer, maxCacheWidth],
-  )
+  useEffect(() => {
+    let cancelled = false
+
+    async function buildPeaksAsync() {
+      setIsLoadingPeaks(true)
+      console.time('[PERF] buildPeaksCache (async)')
+
+      try {
+        const channelData: Float32Array[] = []
+        for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
+          channelData.push(audioBuffer.getChannelData(i))
+        }
+
+        const result = await window.electron.invoke('build-peaks-cache', {
+          channelData,
+          maxCacheWidth,
+        })
+
+        if (!cancelled) {
+          console.timeEnd('[PERF] buildPeaksCache (async)')
+          setPeaksCache(result.peaksCache)
+          setIsLoadingPeaks(false)
+        }
+      } catch (error) {
+        console.error('Failed to build peaks cache:', error)
+        console.time('[PERF] buildPeaksCache (fallback)')
+        const cache = buildPeaksCache(audioBuffer, maxCacheWidth)
+        console.timeEnd('[PERF] buildPeaksCache (fallback)')
+        if (!cancelled) {
+          setPeaksCache(cache)
+          setIsLoadingPeaks(false)
+        }
+      }
+    }
+
+    buildPeaksAsync()
+
+    return () => {
+      cancelled = true
+    }
+  }, [audioBuffer, maxCacheWidth])
 
   const bumpCanvasRevision = useCallback(() => {
     setCanvasRevision((r) => r + 1)
   }, [])
 
   const recalculateVisiblePeaks = useCallback(() => {
+    if (!peaksCache) return
+
+    console.time('[PERF] recalculateVisiblePeaks')
     const canvasWidth = canvasWidthRef.current
     const zoomLevel = zoomLevelRef.current
     const viewStartSample = viewStartSampleRef.current
 
-    if (canvasWidth <= 0) return
+    if (canvasWidth <= 0) {
+      console.timeEnd('[PERF] recalculateVisiblePeaks')
+      return
+    }
 
     const nextSamplesPerPixel = totalSamples / (canvasWidth * zoomLevel)
 
@@ -54,6 +99,7 @@ export default function useViewport({
     }
 
     const viewEndSample = clampedViewStart + visibleSamples
+    console.time('[PERF] getVisiblePeaksFromCache')
     const peaks = getVisiblePeaksFromCache({
       peakCachePerChannel: peaksCache,
       nChannels,
@@ -63,9 +109,12 @@ export default function useViewport({
       canvasWidth,
     })
 
+    console.timeEnd('[PERF] getVisiblePeaksFromCache')
+
     samplesPerPixelRef.current = nextSamplesPerPixel
     visiblePeaksRef.current = peaks
     bumpCanvasRevision()
+    console.timeEnd('[PERF] recalculateVisiblePeaks')
   }, [bumpCanvasRevision, nChannels, peaksCache, totalSamples])
 
   useEffect(() => {
@@ -156,6 +205,7 @@ export default function useViewport({
 
   return {
     canvasRevision,
+    isLoadingPeaks,
     visiblePeaksRef,
     canvasWidthRef,
     zoomLevelRef,
