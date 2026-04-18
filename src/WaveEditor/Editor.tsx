@@ -282,7 +282,9 @@ export default function Editor({
         const hasModifier = event.metaKey || event.ctrlKey || event.altKey
 
         switch (key) {
-          case 'escape':
+          case '\\':
+            if (!isMetaKey) return
+            event.preventDefault()
             onToggleSidebar()
             return
           case 'arrowleft':

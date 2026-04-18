@@ -59,10 +59,10 @@ const Sidebar = styled.aside<{ isVisible: boolean; isDragActive: boolean }>`
   overflow: hidden;
   border: ${({ isVisible, isDragActive }) =>
     isVisible && isDragActive
-      ? '1px dashed var(--text-color)'
+      ? '2px dashed var(--text-color)'
       : '0 solid transparent'};
   background: ${({ isDragActive }) =>
-    isDragActive ? 'rgba(0,0,0,0.05)' : 'transparent'};
+    isDragActive ? 'rgba(100, 149, 237, 0.12)' : 'transparent'};
   opacity: ${({ isVisible }) => (isVisible ? 1 : 0)};
   pointer-events: ${({ isVisible }) => (isVisible ? 'auto' : 'none')};
 `
@@ -129,6 +129,17 @@ const LoadingSpinner = styled.div`
   }
 `
 
+function getIncomingFileKey(file: File) {
+  const filePath = (file as File & { path?: string }).path
+  if (filePath) return `path:${filePath}`
+  return `meta:${file.name}|${file.size}|${file.type}|${file.lastModified}`
+}
+
+function getAudioFileKey(file: AudioFile) {
+  if (file.filePath) return `path:${file.filePath}`
+  return `meta:${file.name}|${file.size}|${file.type}`
+}
+
 export default function App() {
   const [files, setFiles] = useState<AudioFile[]>([])
   const [sidebarSelectedFileId, setSidebarSelectedFileId] = useState<
@@ -142,58 +153,82 @@ export default function App() {
     sampleRate: 48000,
     bitDepth: 24,
   })
-  const { isDragActive, eventHandlers } = useDropArea(async (files) => {
-    if (files.length === 0) {
+  const { isDragActive, eventHandlers } = useDropArea(async (droppedFiles) => {
+    if (droppedFiles.length === 0) {
+      return
+    }
+
+    const existingKeys = new Set(files.map(getAudioFileKey))
+    const seenIncomingKeys = new Set<string>()
+    const incomingUniqueFiles: File[] = []
+    for (const file of droppedFiles) {
+      const key = getIncomingFileKey(file)
+      if (existingKeys.has(key) || seenIncomingKeys.has(key)) continue
+      seenIncomingKeys.add(key)
+      incomingUniqueFiles.push(file)
+    }
+    if (incomingUniqueFiles.length === 0) {
       return
     }
 
     console.time('[PERF] Total file drop')
-    console.log(`[PERF] Starting file drop for ${files.length} file(s)`)
+    console.log(
+      `[PERF] Starting file drop for ${incomingUniqueFiles.length} file(s)`,
+    )
 
     setIsLoadingFiles(true)
     try {
-      setFiles(
-        await Promise.all(
-          files.map(async (file) => {
-            const fileLabel = `[PERF] "${file.name}"`
-            console.log(
-              `${fileLabel} - ${(file.size / 1024 / 1024).toFixed(2)} MB`,
-            )
+      const decodedFiles = await Promise.all(
+        incomingUniqueFiles.map(async (file) => {
+          const fileLabel = `[PERF] "${file.name}"`
+          console.log(
+            `${fileLabel} - ${(file.size / 1024 / 1024).toFixed(2)} MB`,
+          )
 
-            const metadata = await parseBlob(file)
+          const metadata = await parseBlob(file)
 
-            const filePath = (file as File & { path?: string }).path
-            if (
-              metadata.format.duration == null ||
-              metadata.format.sampleRate == null ||
-              metadata.format.bitsPerSample == null ||
-              metadata.format.numberOfChannels == null
-            ) {
-              throw new Error('Invalid or unsupported audio file')
-            }
+          const filePath = (file as File & { path?: string }).path
+          if (
+            metadata.format.duration == null ||
+            metadata.format.sampleRate == null ||
+            metadata.format.bitsPerSample == null ||
+            metadata.format.numberOfChannels == null
+          ) {
+            throw new Error('Invalid or unsupported audio file')
+          }
 
-            const buffer = await file.arrayBuffer()
+          const buffer = await file.arrayBuffer()
 
-            console.time(`${fileLabel} - Audio decoding`)
-            const audioBuffer = await audioCtx.decodeAudioData(buffer)
-            console.timeEnd(`${fileLabel} - Audio decoding`)
+          console.time(`${fileLabel} - Audio decoding`)
+          const audioBuffer = await audioCtx.decodeAudioData(buffer)
+          console.timeEnd(`${fileLabel} - Audio decoding`)
 
-            return {
-              id: crypto.randomUUID(),
-              name: file.name,
-              filePath,
-              size: file.size,
-              type: file.type,
-              duration: metadata.format.duration,
-              sampleRate: metadata.format.sampleRate,
-              bitDepth: metadata.format.bitsPerSample,
-              channels: metadata.format.numberOfChannels,
-              buffer,
-              audioBuffer,
-            }
-          }),
-        ),
+          return {
+            id: crypto.randomUUID(),
+            name: file.name,
+            filePath,
+            size: file.size,
+            type: file.type,
+            duration: metadata.format.duration,
+            sampleRate: metadata.format.sampleRate,
+            bitDepth: metadata.format.bitsPerSample,
+            channels: metadata.format.numberOfChannels,
+            buffer,
+            audioBuffer,
+          }
+        }),
       )
+
+      setFiles((prev) => {
+        const keys = new Set(prev.map(getAudioFileKey))
+        const toAppend = decodedFiles.filter((item) => {
+          const key = getAudioFileKey(item)
+          if (keys.has(key)) return false
+          keys.add(key)
+          return true
+        })
+        return [...prev, ...toAppend]
+      })
     } finally {
       setIsLoadingFiles(false)
       console.timeEnd('[PERF] Total file drop')

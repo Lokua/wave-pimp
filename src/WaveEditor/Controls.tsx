@@ -81,6 +81,7 @@ export default function WaveEditorControls({
   canZoomOut,
 }: WaveEditorControlsProps) {
   const metaKeyLabel = isMac ? 'Cmd' : 'Ctrl'
+  const sidebarShortcutLabel = `${metaKeyLabel}+\\`
   return (
     <Controls>
       <Section>
@@ -88,7 +89,7 @@ export default function WaveEditorControls({
           type="button"
           name="Back"
           aria-label={isSidebarVisible ? 'Hide sidebar' : 'Show sidebar'}
-          title={`${isSidebarVisible ? 'Hide' : 'Show'} sidebar (Esc)`}
+          title={`${isSidebarVisible ? 'Hide' : 'Show'} sidebar (${sidebarShortcutLabel})`}
           onClick={onToggleSidebar}
           on={isSidebarVisible}
           isToggle
