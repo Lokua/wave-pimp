@@ -5,10 +5,10 @@ import type { AudioFile, Settings } from './types'
 import WaveCard from './WaveCard'
 
 const Grid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  justify-content: center;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
+  width: 100%;
   outline: none;
 `
 
@@ -17,8 +17,9 @@ type WaveGridProps = {
   selectedId: string | null
   settings: Settings
   audioContext: AudioContext
-  onSelect: (id: string | null) => void
+  onSelect: (id: string) => void
   onEdit: (file: AudioFile) => void
+  onRemove: (fileId: string) => void
   onUpdateFile: (next: AudioFile) => void
 }
 
@@ -29,6 +30,7 @@ export default function WaveGrid({
   audioContext,
   onSelect,
   onEdit,
+  onRemove,
   onUpdateFile,
 }: WaveGridProps) {
   const gridRef = useRef<HTMLDivElement | null>(null)
@@ -54,18 +56,12 @@ export default function WaveGrid({
       event.key !== 'ArrowRight' &&
       event.key !== 'r' &&
       event.key !== 'R' &&
-      event.key !== 'Enter' &&
-      event.key !== 'Escape'
+      event.key !== 'Enter'
     ) {
       return
     }
 
     event.preventDefault()
-
-    if (event.key === 'Escape') {
-      onSelect(null)
-      return
-    }
 
     if (event.key === 'Enter') {
       if (!selectedId) return
@@ -108,11 +104,6 @@ export default function WaveGrid({
         selectedId ? `wave-card-${selectedId}` : undefined
       }
       onKeyDown={onKeyDown}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) {
-          onSelect(null)
-        }
-      }}
     >
       {files.map((file) => (
         <WaveCard
@@ -136,6 +127,7 @@ export default function WaveGrid({
             focusGrid()
           }}
           onEdit={onEdit}
+          onRemove={onRemove}
           onUpdateFile={onUpdateFile}
         />
       ))}

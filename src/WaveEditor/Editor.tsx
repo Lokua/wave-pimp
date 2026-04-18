@@ -65,7 +65,8 @@ type WaveEditorProps = {
   file: AudioFile
   settings: Settings
   audioContext: AudioContext
-  onBack: () => void
+  isSidebarVisible: boolean
+  onToggleSidebar: () => void
   onUpdateFile: (next: AudioFile) => void
 }
 
@@ -73,7 +74,8 @@ export default function Editor({
   file,
   settings,
   audioContext,
-  onBack,
+  isSidebarVisible,
+  onToggleSidebar,
   onUpdateFile,
 }: WaveEditorProps) {
   const audioBuffer = file.audioBuffer
@@ -281,7 +283,7 @@ export default function Editor({
 
         switch (key) {
           case 'escape':
-            onBack()
+            onToggleSidebar()
             return
           case 'arrowleft':
             if (!isMetaKey) return
@@ -366,13 +368,13 @@ export default function Editor({
       fadeOut,
       isPlaying,
       normalize,
-      onBack,
       onClickPlay,
       onClickSave,
       onClickSaveAs,
       onClickStop,
       onClickSelectToEnd,
       onClickSelectToStart,
+      onToggleSidebar,
       onZoomIn,
       onZoomOut,
       trim,
@@ -399,7 +401,8 @@ export default function Editor({
         onClickNormalize={normalize}
         onClickSave={onClickSave}
         onClickSaveAs={onClickSaveAs}
-        onBack={onBack}
+        isSidebarVisible={isSidebarVisible}
+        onToggleSidebar={onToggleSidebar}
         canZoomIn={canZoomIn}
         canZoomOut={canZoomOut}
       />

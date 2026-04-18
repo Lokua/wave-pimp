@@ -1,5 +1,5 @@
 import styled from '@emotion/styled'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { AudioFile, Settings } from './types'
 import useDropArea from './useDropArea'
@@ -22,48 +22,96 @@ const Titlebar = styled.div`
   position: sticky;
   top: 0;
   display: flex;
+  justify-content: center;
   align-items: center;
   padding-left: 80px;
+  padding-right: 80px;
   flex-shrink: 0;
   height: 36px;
-  text-align: center;
   user-select: none;
   background: var(--bg-main);
   z-index: 10;
 `
 
-const Content = styled.div`
-  flex: 1;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  padding: 24px;
-  padding-top: 12px;
+const TitlebarFileName = styled.h3`
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `
 
-const DropArea = styled.div<{ isDragActive: boolean }>`
+const Content = styled.div<{ isSidebarVisible: boolean }>`
+  position: relative;
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  padding: 6px 12px 0px;
+  gap: ${({ isSidebarVisible }) => (isSidebarVisible ? '12px' : '0')};
+`
+
+const Sidebar = styled.aside<{ isVisible: boolean; isDragActive: boolean }>`
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 ${({ isVisible }) => (isVisible ? '420px' : '0px')};
+  min-width: 0;
+  overflow: hidden;
+  border: ${({ isVisible, isDragActive }) =>
+    isVisible && isDragActive
+      ? '1px dashed var(--text-color)'
+      : '0 solid transparent'};
+  background: ${({ isDragActive }) =>
+    isDragActive ? 'rgba(0,0,0,0.05)' : 'transparent'};
+  opacity: ${({ isVisible }) => (isVisible ? 1 : 0)};
+  pointer-events: ${({ isVisible }) => (isVisible ? 'auto' : 'none')};
+`
+
+const SidebarInner = styled.div`
+  width: 420px;
+  max-width: 100%;
+  height: 100%;
+  overflow: auto;
+  padding: 12px;
+`
+
+const SidebarEmpty = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  flex: 1;
+  min-height: 100%;
   padding: 24px;
-  border: 1px dashed var(--text-color);
   text-align: center;
-  background: ${({ isDragActive }) =>
-    isDragActive ? 'rgba(0,0,0,0.05)' : 'transparent'};
-  transition: background 0.15s;
+`
+
+const EditorPane = styled.section`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+`
+
+const EditorEmpty = styled.div`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
 `
 
 const LoadingOverlay = styled.div`
-  flex: 1;
+  position: absolute;
+  inset: 12px 24px 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 16px;
   color: var(--text-color);
-  opacity: 0.7;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-color);
+  z-index: 5;
 `
 
 const LoadingSpinner = styled.div`
@@ -82,10 +130,12 @@ const LoadingSpinner = styled.div`
 `
 
 export default function App() {
-  const [view, setView] = useState('list')
-  const [file, setFile] = useState<AudioFile | null>(null)
   const [files, setFiles] = useState<AudioFile[]>([])
-  const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
+  const [sidebarSelectedFileId, setSidebarSelectedFileId] = useState<
+    string | null
+  >(null)
+  const [editorFileId, setEditorFileId] = useState<string | null>(null)
+  const [isSidebarVisible, setIsSidebarVisible] = useState(true)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isLoadingFiles, setIsLoadingFiles] = useState(false)
   const [settings, setSettings] = useState<Settings>({
@@ -93,80 +143,105 @@ export default function App() {
     bitDepth: 24,
   })
   const { isDragActive, eventHandlers } = useDropArea(async (files) => {
+    if (files.length === 0) {
+      return
+    }
+
     console.time('[PERF] Total file drop')
     console.log(`[PERF] Starting file drop for ${files.length} file(s)`)
 
     setIsLoadingFiles(true)
-    setFiles(
-      await Promise.all(
-        files.map(async (file) => {
-          const fileLabel = `[PERF] "${file.name}"`
-          console.log(
-            `${fileLabel} - ${(file.size / 1024 / 1024).toFixed(2)} MB`,
-          )
+    try {
+      setFiles(
+        await Promise.all(
+          files.map(async (file) => {
+            const fileLabel = `[PERF] "${file.name}"`
+            console.log(
+              `${fileLabel} - ${(file.size / 1024 / 1024).toFixed(2)} MB`,
+            )
 
-          const metadata = await parseBlob(file)
+            const metadata = await parseBlob(file)
 
-          const filePath = (file as File & { path?: string }).path
-          if (
-            metadata.format.duration == null ||
-            metadata.format.sampleRate == null ||
-            metadata.format.bitsPerSample == null ||
-            metadata.format.numberOfChannels == null
-          ) {
-            throw new Error('Invalid or unsupported audio file')
-          }
+            const filePath = (file as File & { path?: string }).path
+            if (
+              metadata.format.duration == null ||
+              metadata.format.sampleRate == null ||
+              metadata.format.bitsPerSample == null ||
+              metadata.format.numberOfChannels == null
+            ) {
+              throw new Error('Invalid or unsupported audio file')
+            }
 
-          const buffer = await file.arrayBuffer()
+            const buffer = await file.arrayBuffer()
 
-          console.time(`${fileLabel} - Audio decoding`)
-          const audioBuffer = await audioCtx.decodeAudioData(buffer)
-          console.timeEnd(`${fileLabel} - Audio decoding`)
+            console.time(`${fileLabel} - Audio decoding`)
+            const audioBuffer = await audioCtx.decodeAudioData(buffer)
+            console.timeEnd(`${fileLabel} - Audio decoding`)
 
-          return {
-            id: crypto.randomUUID(),
-            name: file.name,
-            filePath,
-            size: file.size,
-            type: file.type,
-            duration: metadata.format.duration,
-            sampleRate: metadata.format.sampleRate,
-            bitDepth: metadata.format.bitsPerSample,
-            channels: metadata.format.numberOfChannels,
-            buffer,
-            audioBuffer,
-          }
-        }),
-      ),
-    )
-    setIsLoadingFiles(false)
-
-    console.timeEnd('[PERF] Total file drop')
+            return {
+              id: crypto.randomUUID(),
+              name: file.name,
+              filePath,
+              size: file.size,
+              type: file.type,
+              duration: metadata.format.duration,
+              sampleRate: metadata.format.sampleRate,
+              bitDepth: metadata.format.bitsPerSample,
+              channels: metadata.format.numberOfChannels,
+              buffer,
+              audioBuffer,
+            }
+          }),
+        ),
+      )
+    } finally {
+      setIsLoadingFiles(false)
+      console.timeEnd('[PERF] Total file drop')
+    }
   })
 
   function onEditFile(file: AudioFile) {
-    setView('edit')
-    setFile(file)
+    setEditorFileId(file.id)
+    setSidebarSelectedFileId(file.id)
   }
 
   function updateFile(next: AudioFile) {
-    setFile(next)
     setFiles((prev) => prev.map((item) => (item.id === next.id ? next : item)))
   }
 
-  function onClickBack() {
-    setView('list')
+  function removeFile(fileId: string) {
+    setFiles((prev) => prev.filter((item) => item.id !== fileId))
   }
 
   useEffect(() => {
     if (files.length === 0) {
-      setSelectedFileId(null)
+      setSidebarSelectedFileId(null)
+      setEditorFileId(null)
+      setIsSidebarVisible(true)
       return
     }
-    if (selectedFileId && !files.some((item) => item.id === selectedFileId)) {
-      setSelectedFileId(null)
+
+    const firstFileId = files[0].id
+    const hasEditorFile =
+      editorFileId != null && files.some((item) => item.id === editorFileId)
+    const nextEditorFileId = hasEditorFile ? editorFileId : firstFileId
+
+    if (!hasEditorFile) {
+      setEditorFileId(firstFileId)
     }
-  }, [files, selectedFileId])
+
+    const hasSidebarSelection =
+      sidebarSelectedFileId != null &&
+      files.some((item) => item.id === sidebarSelectedFileId)
+    if (!hasSidebarSelection) {
+      setSidebarSelectedFileId(nextEditorFileId)
+    }
+  }, [editorFileId, files, sidebarSelectedFileId])
+
+  const selectedFile = useMemo(() => {
+    if (!editorFileId) return null
+    return files.find((item) => item.id === editorFileId) ?? null
+  }, [editorFileId, files])
 
   useEffect(() => {
     function openSettings() {
@@ -179,62 +254,59 @@ export default function App() {
     }
   }, [])
 
-  useEffect(() => {
-    if (view !== 'list') return
-    function onPointerDown(event: PointerEvent) {
-      const path = event.composedPath()
-      const clickedCard = path.some((item) => {
-        if (!(item instanceof HTMLElement)) return false
-        return item.dataset.waveCard === 'true'
-      })
-      if (clickedCard) return
-      setSelectedFileId(null)
-    }
-
-    document.addEventListener('pointerdown', onPointerDown, true)
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown, true)
-    }
-  }, [view])
-
   return (
     <Container>
-      <Titlebar />
-      <Content>
+      <Titlebar>
+        <TitlebarFileName>{selectedFile?.name ?? ''}</TitlebarFileName>
+      </Titlebar>
+      <Content isSidebarVisible={isSidebarVisible}>
+        <Sidebar
+          isVisible={isSidebarVisible}
+          isDragActive={isDragActive}
+          aria-hidden={!isSidebarVisible}
+          {...eventHandlers}
+        >
+          <SidebarInner>
+            {files.length ? (
+              <WaveGrid
+                files={files}
+                selectedId={sidebarSelectedFileId}
+                settings={settings}
+                audioContext={audioCtx}
+                onSelect={setSidebarSelectedFileId}
+                onEdit={onEditFile}
+                onRemove={removeFile}
+                onUpdateFile={updateFile}
+              />
+            ) : (
+              <SidebarEmpty>Drop audio file(s)</SidebarEmpty>
+            )}
+          </SidebarInner>
+        </Sidebar>
+        <EditorPane>
+          {selectedFile ? (
+            <WaveEditor
+              file={selectedFile}
+              settings={settings}
+              audioContext={audioCtx}
+              isSidebarVisible={isSidebarVisible}
+              onToggleSidebar={() => {
+                setIsSidebarVisible((prev) => !prev)
+              }}
+              onUpdateFile={updateFile}
+            />
+          ) : (
+            <EditorEmpty>
+              Drop audio file(s) in the sidebar to begin.
+            </EditorEmpty>
+          )}
+        </EditorPane>
         {isLoadingFiles ? (
           <LoadingOverlay>
             <LoadingSpinner />
             <div>Loading audio file(s)...</div>
           </LoadingOverlay>
-        ) : files.length ? (
-          <>
-            {view === 'list' ? (
-              <WaveGrid
-                files={files}
-                selectedId={selectedFileId}
-                settings={settings}
-                audioContext={audioCtx}
-                onSelect={setSelectedFileId}
-                onEdit={onEditFile}
-                onUpdateFile={updateFile}
-              />
-            ) : (
-              file && (
-                <WaveEditor
-                  file={file}
-                  settings={settings}
-                  audioContext={audioCtx}
-                  onBack={onClickBack}
-                  onUpdateFile={updateFile}
-                />
-              )
-            )}
-          </>
-        ) : (
-          <DropArea isDragActive={isDragActive} {...eventHandlers}>
-            Drop audio file(s)
-          </DropArea>
-        )}
+        ) : null}
       </Content>
       <SettingsModal
         isOpen={isSettingsOpen}

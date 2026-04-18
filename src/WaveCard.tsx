@@ -114,6 +114,7 @@ type WaveCardProps = {
   renameSignal: number
   onSelect: () => void
   onEdit: (file: AudioFile) => void
+  onRemove: (fileId: string) => void
   onUpdateFile: (next: AudioFile) => void
 }
 
@@ -131,6 +132,7 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
     renameSignal,
     onSelect,
     onEdit,
+    onRemove,
     onUpdateFile,
   },
   ref,
@@ -288,6 +290,11 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
     onEdit(file)
   }
 
+  function onClickRemove(event: React.MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    onRemove(file.id)
+  }
+
   function ensureWavExtension(name: string) {
     return name.toLowerCase().endsWith('.wav') ? name : `${name}.wav`
   }
@@ -365,11 +372,18 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
         />
         <IconButton
           type="button"
-          name="Edit"
-          aria-label="Edit"
-          title="Open editor (Enter)"
-          onClick={onClickEdit}
+          name="Close"
+          aria-label="Remove from sidebar"
+          title="Remove from sidebar"
+          onClick={onClickRemove}
           style={{ marginLeft: 'auto' }}
+        />
+        <IconButton
+          type="button"
+          name="Edit"
+          aria-label="Load in editor"
+          title="Load in editor (Enter)"
+          onClick={onClickEdit}
         />
       </Actions>
       <WaveformCanvas

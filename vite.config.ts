@@ -7,7 +7,19 @@ import svgr from 'vite-plugin-svgr'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
-    react(),
+    react({
+      babel: {
+        plugins: [
+          [
+            '@emotion',
+            {
+              autoLabel: 'always',
+              labelFormat: '[filename]-[local]',
+            },
+          ],
+        ],
+      },
+    }),
     svgr(),
     electron({
       main: {
