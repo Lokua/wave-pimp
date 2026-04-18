@@ -58,7 +58,8 @@ const LoadingSpinner = styled.div`
   }
 `
 
-const MAX_CACHE_WIDTH = 7680
+// const MAX_CACHE_WIDTH = 7680
+const MAX_CACHE_WIDTH = window.screen.width
 
 type WaveEditorProps = {
   file: AudioFile
@@ -175,46 +176,56 @@ export default function Editor({
     },
   })
 
-  useEffect(() => {
-    console.time('[PERF] Editor mount')
-    const preserveSelection = preserveSelectionOnNextBufferRef.current
-    preserveSelectionOnNextBufferRef.current = false
-    playbackRef.current.stop()
-    playbackRef.current.setBuffer(audioBuffer)
-    if (!preserveSelection) {
-      resetViewport()
-      setSelection({
-        startSample: null,
-        endSample: null,
-      })
-    }
-    recalculateVisiblePeaks()
-    console.timeEnd('[PERF] Editor mount')
-  }, [
-    audioBuffer,
-    playbackRef,
-    recalculateVisiblePeaks,
-    resetViewport,
-    setSelection,
-  ])
+  useEffect(
+    function onMount() {
+      console.time('[PERF] Editor mount')
+      const preserveSelection = preserveSelectionOnNextBufferRef.current
+      preserveSelectionOnNextBufferRef.current = false
+      playbackRef.current.stop()
+      playbackRef.current.setBuffer(audioBuffer)
+      if (!preserveSelection) {
+        resetViewport()
+        setSelection({
+          startSample: null,
+          endSample: null,
+        })
+      }
+      recalculateVisiblePeaks()
+      console.timeEnd('[PERF] Editor mount')
+    },
+    [
+      audioBuffer,
+      playbackRef,
+      recalculateVisiblePeaks,
+      resetViewport,
+      setSelection,
+    ],
+  )
 
-  useEffect(() => {
-    let frame = 0
-    const updateElapsed = () => {
+  useEffect(
+    function onPlayback() {
+      let frame = 0
+      const updateElapsed = () => {
+        setElapsedSeconds(playbackRef.current.getCurrentTimeSeconds())
+        frame = requestAnimationFrame(updateElapsed)
+      }
+
+      if (isPlaying) {
+        frame = requestAnimationFrame(updateElapsed)
+        return () => {
+          cancelAnimationFrame(frame)
+        }
+      }
+
       setElapsedSeconds(playbackRef.current.getCurrentTimeSeconds())
-      frame = requestAnimationFrame(updateElapsed)
-    }
-
-    if (isPlaying) {
-      frame = requestAnimationFrame(updateElapsed)
-      return () => cancelAnimationFrame(frame)
-    }
-
-    setElapsedSeconds(playbackRef.current.getCurrentTimeSeconds())
-    return () => {
-      if (frame) cancelAnimationFrame(frame)
-    }
-  }, [isPlaying, playbackRef, audioBuffer])
+      return () => {
+        if (frame) {
+          cancelAnimationFrame(frame)
+        }
+      }
+    },
+    [isPlaying, playbackRef, audioBuffer],
+  )
 
   const onClickSelectToStart = useCallback(() => {
     const cursorSample = getCursorSample() ?? 0
@@ -249,121 +260,124 @@ export default function Editor({
     })
   }, [saveWav])
 
-  useEffect(() => {
-    function isEditableTarget(target: EventTarget | null) {
-      if (!(target instanceof HTMLElement)) return false
-      return (
-        target.isContentEditable ||
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.tagName === 'SELECT'
-      )
-    }
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (isEditableTarget(event.target)) return
-
-      const key = event.code === 'Space' ? 'space' : event.key.toLowerCase()
-      const isMetaKey = isMac ? event.metaKey : event.ctrlKey
-      const hasModifier = event.metaKey || event.ctrlKey || event.altKey
-
-      switch (key) {
-        case 'escape':
-          onBack()
-          return
-        case 'arrowleft':
-          if (!isMetaKey) return
-          event.preventDefault()
-          onClickSelectToStart()
-          return
-        case 'arrowright':
-          if (!isMetaKey) return
-          event.preventDefault()
-          onClickSelectToEnd()
-          return
-        case 's':
-          if (!isMetaKey) return
-          event.preventDefault()
-          if (event.shiftKey) {
-            onClickSaveAs()
-          } else {
-            onClickSave()
-          }
-          return
-        case 'space':
-          if (hasModifier) return
-          event.preventDefault()
-          if (isPlaying) {
-            onClickStop()
-          } else {
-            onClickPlay()
-          }
-          return
-        case '[':
-          if (hasModifier) return
-          if (!canZoomOut) return
-          event.preventDefault()
-          onZoomOut()
-          return
-        case ']':
-          if (hasModifier) return
-          if (!canZoomIn) return
-          event.preventDefault()
-          onZoomIn()
-          return
-        case 'x':
-          if (hasModifier) return
-          event.preventDefault()
-          trim()
-          return
-        case 'k':
-          if (hasModifier) return
-          event.preventDefault()
-          crop()
-          return
-        case 'f':
-          if (hasModifier) return
-          event.preventDefault()
-          fadeIn()
-          return
-        case 'v':
-          if (hasModifier) return
-          event.preventDefault()
-          fadeOut()
-          return
-        case 'n':
-          if (hasModifier) return
-          event.preventDefault()
-          normalize()
-          return
-        default:
-          return
+  useEffect(
+    function setupKeyboardShortcuts() {
+      function isEditableTarget(target: EventTarget | null) {
+        if (!(target instanceof HTMLElement)) return false
+        return (
+          target.isContentEditable ||
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT'
+        )
       }
-    }
 
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [
-    canZoomIn,
-    canZoomOut,
-    crop,
-    fadeIn,
-    fadeOut,
-    isPlaying,
-    normalize,
-    onBack,
-    onClickPlay,
-    onClickSave,
-    onClickSaveAs,
-    onClickStop,
-    onClickSelectToEnd,
-    onClickSelectToStart,
-    onZoomIn,
-    onZoomOut,
-    trim,
-  ])
+      function onKeyDown(event: KeyboardEvent) {
+        if (isEditableTarget(event.target)) return
+
+        const key = event.code === 'Space' ? 'space' : event.key.toLowerCase()
+        const isMetaKey = isMac ? event.metaKey : event.ctrlKey
+        const hasModifier = event.metaKey || event.ctrlKey || event.altKey
+
+        switch (key) {
+          case 'escape':
+            onBack()
+            return
+          case 'arrowleft':
+            if (!isMetaKey) return
+            event.preventDefault()
+            onClickSelectToStart()
+            return
+          case 'arrowright':
+            if (!isMetaKey) return
+            event.preventDefault()
+            onClickSelectToEnd()
+            return
+          case 's':
+            if (!isMetaKey) return
+            event.preventDefault()
+            if (event.shiftKey) {
+              onClickSaveAs()
+            } else {
+              onClickSave()
+            }
+            return
+          case 'space':
+            if (hasModifier) return
+            event.preventDefault()
+            if (isPlaying) {
+              onClickStop()
+            } else {
+              onClickPlay()
+            }
+            return
+          case '[':
+            if (hasModifier) return
+            if (!canZoomOut) return
+            event.preventDefault()
+            onZoomOut()
+            return
+          case ']':
+            if (hasModifier) return
+            if (!canZoomIn) return
+            event.preventDefault()
+            onZoomIn()
+            return
+          case 'x':
+            if (hasModifier) return
+            event.preventDefault()
+            trim()
+            return
+          case 'k':
+            if (hasModifier) return
+            event.preventDefault()
+            crop()
+            return
+          case 'f':
+            if (hasModifier) return
+            event.preventDefault()
+            fadeIn()
+            return
+          case 'v':
+            if (hasModifier) return
+            event.preventDefault()
+            fadeOut()
+            return
+          case 'n':
+            if (hasModifier) return
+            event.preventDefault()
+            normalize()
+            return
+          default:
+            return
+        }
+      }
+
+      document.addEventListener('keydown', onKeyDown)
+      return () => {
+        document.removeEventListener('keydown', onKeyDown)
+      }
+    },
+    [
+      canZoomIn,
+      canZoomOut,
+      crop,
+      fadeIn,
+      fadeOut,
+      isPlaying,
+      normalize,
+      onBack,
+      onClickPlay,
+      onClickSave,
+      onClickSaveAs,
+      onClickStop,
+      onClickSelectToEnd,
+      onClickSelectToStart,
+      onZoomIn,
+      onZoomOut,
+      trim,
+    ],
+  )
 
   return (
     <>

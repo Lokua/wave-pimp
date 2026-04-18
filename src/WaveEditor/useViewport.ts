@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { PeaksCache, VisiblePeaks } from '../types'
+import type { PeaksCache, PeaksCacheLevel, VisiblePeaks } from '../types'
 import { getVisiblePeaksFromCache } from './peaks'
 
 type UseViewportArgs = {
@@ -29,48 +29,108 @@ export default function useViewport({
   const nChannels = audioBuffer.numberOfChannels
   const totalSamples = audioBuffer.getChannelData(0).length
 
-  useEffect(() => {
-    let cancelled = false
+  useEffect(
+    function getPeaks() {
+      let cancelled = false
 
-    async function buildPeaksAsync() {
-      setIsLoadingPeaks(true)
-      console.time('[PERF] buildPeaksCache (Editor useViewport)')
+      async function buildPeaksAsync() {
+        setIsLoadingPeaks(true)
+        console.time('[PERF] buildPeaksCache (Editor useViewport)')
 
-      try {
-        const channelData: Float32Array[] = []
-        for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
-          channelData.push(audioBuffer.getChannelData(i))
-        }
+        try {
+          const channelData: Float32Array[] = []
+          for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
+            channelData.push(audioBuffer.getChannelData(i))
+          }
 
-        const result = await window.electron.invoke('build-peaks-cache', {
-          channelData,
-          maxCacheWidth,
-          options: {
-            onlyLowestLevel: false,
-          },
-        })
+          const totalSamples = audioBuffer.getChannelData(0).length
 
-        console.log('result.peaksCache:', result.peaksCache)
+          // First, calculate which block sizes we need
+          const blockSizesResult = await window.electron.invoke(
+            'calculate-block-sizes',
+            {
+              totalSamples,
+              maxCacheWidth,
+            },
+          )
 
-        if (!cancelled) {
-          console.timeEnd('[PERF] buildPeaksCache (Editor useViewport)')
-          setPeaksCache(result.peaksCache)
-          setIsLoadingPeaks(false)
-        }
-      } catch (error) {
-        console.error('Failed to build peaks cache:', error)
-        if (!cancelled) {
-          setIsLoadingPeaks(false)
+          if (cancelled) return
+
+          const { blockSizes } = blockSizesResult as { blockSizes: number[] }
+          console.log(
+            `[PERF] Building ${blockSizes.length} cache levels:`,
+            blockSizes,
+          )
+
+          // Build cache one level at a time to avoid IPC size limits
+          // Build from coarsest to finest to transfer smaller data first
+          const peaksCachePerChannel: PeaksCache = Array.from(
+            { length: nChannels },
+            () => [],
+          )
+
+          for (let i = blockSizes.length - 1; i >= 0; i--) {
+            if (cancelled) return
+
+            const blockSize = blockSizes[i]
+            console.log(
+              `[DEBUG] About to build level ${i + 1}/${blockSizes.length} (blockSize=${blockSize})`,
+            )
+            console.time(
+              `[PERF] Building cache level ${i + 1}/${blockSizes.length} (blockSize=${blockSize})`,
+            )
+
+            const result = await window.electron.invoke(
+              'build-peaks-cache-level',
+              {
+                channelData,
+                blockSize,
+              },
+            )
+
+            if (cancelled) return
+
+            const { levels } = result as { levels: Array<PeaksCacheLevel> }
+
+            // Add this level to each channel (prepend since we're building in
+            // reverse)
+            for (let ch = 0; ch < nChannels; ch++) {
+              peaksCachePerChannel[ch].unshift(levels[ch])
+            }
+
+            // if (!cancelled) {
+            //   console.timeEnd('[PERF] buildPeaksCache (Editor useViewport)')
+            //   setPeaksCache(peaksCachePerChannel)
+            //   setIsLoadingPeaks(false)
+            // }
+
+            console.timeEnd(
+              `[PERF] Building cache level ${i + 1}/${blockSizes.length} (blockSize=${blockSize})`,
+            )
+            console.log(`[DEBUG] Completed level ${i + 1}/${blockSizes.length}`)
+          }
+
+          if (!cancelled) {
+            console.timeEnd('[PERF] buildPeaksCache (Editor useViewport)')
+            setPeaksCache(peaksCachePerChannel)
+            setIsLoadingPeaks(false)
+          }
+        } catch (error) {
+          console.error('Failed to build peaks cache:', error)
+          if (!cancelled) {
+            setIsLoadingPeaks(false)
+          }
         }
       }
-    }
 
-    buildPeaksAsync()
+      buildPeaksAsync()
 
-    return () => {
-      cancelled = true
-    }
-  }, [audioBuffer, maxCacheWidth])
+      return () => {
+        cancelled = true
+      }
+    },
+    [audioBuffer, maxCacheWidth, nChannels],
+  )
 
   const bumpCanvasRevision = useCallback(() => {
     setCanvasRevision((r) => r + 1)

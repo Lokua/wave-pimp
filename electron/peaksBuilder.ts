@@ -1,5 +1,6 @@
 import { PeaksCache, PeaksCacheLevel } from '../src/types'
 
+const BLOCK_SIZE_INCREMENT = 8
 /**
  * Builds a multi-resolution waveform peaks cache.
  *
@@ -65,7 +66,7 @@ export function buildPeaksCache(
       const nBlocks = Math.ceil(totalSamples / blockSize)
       if (nBlocks < 4) break
       if (onlyLowestLevel && nBlocks > maxWidth) {
-        blockSize *= 2
+        blockSize *= BLOCK_SIZE_INCREMENT
         continue
       }
 
@@ -91,11 +92,76 @@ export function buildPeaksCache(
       })
 
       if (nBlocks <= maxWidth) break
-      blockSize *= 2
+      blockSize *= BLOCK_SIZE_INCREMENT
     }
 
     built.push(cacheLevels)
   }
 
   return built
+}
+
+/**
+ * Builds a single cache level for all channels at a specific block size.
+ * This is used for streaming cache levels one at a time over IPC.
+ */
+export function buildPeaksCacheLevel(
+  channelData: Float32Array[],
+  blockSize: number,
+): Array<PeaksCacheLevel> {
+  const nChannels = channelData.length
+  const levels: Array<PeaksCacheLevel> = []
+
+  for (let ch = 0; ch < nChannels; ch++) {
+    const floatArray = channelData[ch]
+    const totalSamples = floatArray.length
+    const nBlocks = Math.ceil(totalSamples / blockSize)
+
+    const mins = new Float32Array(nBlocks)
+    const maxs = new Float32Array(nBlocks)
+    for (let i = 0; i < nBlocks; i++) {
+      const start = i * blockSize
+      const end = Math.min(start + blockSize, totalSamples)
+      let min = 1.0
+      let max = -1.0
+      for (let j = start; j < end; j++) {
+        const s = floatArray[j]
+        if (s < min) min = s
+        if (s > max) max = s
+      }
+      mins[i] = min
+      maxs[i] = max
+    }
+    levels.push({
+      blockSize,
+      mins,
+      maxs,
+    })
+  }
+
+  return levels
+}
+
+/**
+ * Calculates which block sizes should be generated for streaming.
+ * Returns an array of block sizes in order from finest to coarsest.
+ */
+export function calculateBlockSizes(
+  totalSamples: number,
+  maxWidth: number,
+): number[] {
+  const blockSizes: number[] = []
+  let blockSize = 1
+
+  while (true) {
+    const nBlocks = Math.ceil(totalSamples / blockSize)
+    if (nBlocks < 4) break
+
+    blockSizes.push(blockSize)
+
+    if (nBlocks <= maxWidth) break
+    blockSize *= BLOCK_SIZE_INCREMENT
+  }
+
+  return blockSizes
 }

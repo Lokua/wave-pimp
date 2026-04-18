@@ -74,6 +74,7 @@ const IconButtonRoot = styled('button', {
     height: 20px;
     display: block;
     fill: currentColor;
+    pointer-events: none;
   }
 
   &:disabled {

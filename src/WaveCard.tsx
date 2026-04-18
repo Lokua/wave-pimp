@@ -118,6 +118,7 @@ type WaveCardProps = {
 }
 
 const MAX_CACHE_WIDTH = 7680
+// const MAX_CACHE_WIDTH = window.screen.width
 
 const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
   {

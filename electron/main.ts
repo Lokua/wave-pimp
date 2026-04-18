@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  crashReporter,
   dialog,
   ipcMain,
   Menu,
@@ -10,7 +11,34 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import contextMenu from 'electron-context-menu'
-import { buildPeaksCache } from './peaksBuilder'
+import {
+  buildPeaksCache,
+  buildPeaksCacheLevel,
+  calculateBlockSizes,
+} from './peaksBuilder'
+
+app.setPath('crashDumps', path.join(app.getPath('userData'), 'crashes'))
+
+crashReporter.start({
+  submitURL: 'https://example.invalid',
+  uploadToServer: false,
+})
+
+process.on('uncaughtException', (err) => {
+  console.error('[main uncaughtException]', err)
+})
+
+process.on('unhandledRejection', (err) => {
+  console.error('[main unhandledRejection]', err)
+})
+
+app.on('render-process-gone', (_e, wc, details) => {
+  console.error('[app render-process-gone]', { details, url: wc.getURL() })
+})
+
+app.on('child-process-gone', (_e, details) => {
+  console.error('[app child-process-gone]', details)
+})
 
 // const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -140,6 +168,38 @@ function createAppMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
+function attachWebContentsDeathLogging(win: BrowserWindow) {
+  const wc = win.webContents
+
+  wc.on('render-process-gone', (_event, details) => {
+    console.error('[render-process-gone]', {
+      // "oom" | "crashed" | "killed" | "clean-exit" | ...
+      reason: details.reason,
+      exitCode: details.exitCode,
+    })
+  })
+
+  wc.on('unresponsive', () => {
+    console.error('[webcontents-unresponsive]')
+  })
+
+  wc.on('responsive', () => {
+    console.error('[webcontents-responsive-again]')
+  })
+
+  wc.on(
+    'did-fail-load',
+    (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      console.error('[did-fail-load]', {
+        errorCode,
+        errorDescription,
+        validatedURL,
+        isMainFrame,
+      })
+    },
+  )
+}
+
 function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC, 'icons/vmc.png'),
@@ -154,6 +214,8 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.mjs'),
     },
   })
+
+  attachWebContentsDeathLogging(win)
 
   // Test active push message to Renderer-process.
   win.webContents.on('did-finish-load', () => {
@@ -263,6 +325,48 @@ ipcMain.handle(
       return { peaksCache }
     } catch (error) {
       console.error('Failed to build peaks cache:', error)
+      throw error
+    }
+  },
+)
+
+// Calculate which block sizes will be needed for streaming
+ipcMain.handle(
+  'calculate-block-sizes',
+  async (
+    _,
+    data: {
+      totalSamples: number
+      maxCacheWidth: number
+    },
+  ) => {
+    try {
+      const { totalSamples, maxCacheWidth } = data
+      const blockSizes = calculateBlockSizes(totalSamples, maxCacheWidth)
+      return { blockSizes }
+    } catch (error) {
+      console.error('Failed to calculate block sizes:', error)
+      throw error
+    }
+  },
+)
+
+// Build a single cache level and return it
+ipcMain.handle(
+  'build-peaks-cache-level',
+  async (
+    _,
+    data: {
+      channelData: Float32Array[]
+      blockSize: number
+    },
+  ) => {
+    try {
+      const { channelData, blockSize } = data
+      const levels = buildPeaksCacheLevel(channelData, blockSize)
+      return { levels }
+    } catch (error) {
+      console.error('Failed to build peaks cache level:', error)
       throw error
     }
   },
