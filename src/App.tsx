@@ -7,6 +7,8 @@ import WaveEditor from './WaveEditor'
 import { parseBlob } from 'music-metadata'
 import SettingsModal from './SettingsModal'
 import WaveGrid from './WaveGrid'
+import BulkView from './BulkView'
+import IconButton from './components/IconButton'
 
 const audioCtx = new AudioContext()
 
@@ -68,11 +70,23 @@ const Sidebar = styled.aside<{ isVisible: boolean; isDragActive: boolean }>`
 `
 
 const SidebarInner = styled.div`
+  flex: 1;
   width: 420px;
   max-width: 100%;
-  height: 100%;
+  min-height: 0;
   overflow: auto;
-  padding: 12px;
+  padding: 24px 12px 12px;
+`
+
+const SidebarHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-height: 28px;
+  flex-shrink: 0;
+  padding: 0 8px;
 `
 
 const SidebarEmpty = styled.div`
@@ -149,6 +163,7 @@ export default function App() {
   const [isSidebarVisible, setIsSidebarVisible] = useState(true)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isLoadingFiles, setIsLoadingFiles] = useState(false)
+  const [bulkMode, setBulkMode] = useState(false)
   const [settings, setSettings] = useState<Settings>({
     sampleRate: 48000,
     bitDepth: 24,
@@ -240,6 +255,14 @@ export default function App() {
     setSidebarSelectedFileId(file.id)
   }
 
+  function enterBulkMode() {
+    setBulkMode(true)
+  }
+
+  function exitBulkMode() {
+    setBulkMode(false)
+  }
+
   function updateFile(next: AudioFile) {
     setFiles((prev) => prev.map((item) => (item.id === next.id ? next : item)))
   }
@@ -289,53 +312,92 @@ export default function App() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!bulkMode) return
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setBulkMode(false)
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [bulkMode])
+
   return (
     <Container>
       <Titlebar>
         <TitlebarFileName>{selectedFile?.name ?? ''}</TitlebarFileName>
       </Titlebar>
       <Content isSidebarVisible={isSidebarVisible}>
-        <Sidebar
-          isVisible={isSidebarVisible}
-          isDragActive={isDragActive}
-          aria-hidden={!isSidebarVisible}
-          {...eventHandlers}
-        >
-          <SidebarInner>
-            {files.length ? (
-              <WaveGrid
-                files={files}
-                selectedId={sidebarSelectedFileId}
-                settings={settings}
-                audioContext={audioCtx}
-                onSelect={setSidebarSelectedFileId}
-                onEdit={onEditFile}
-                onRemove={removeFile}
-                onUpdateFile={updateFile}
-              />
-            ) : (
-              <SidebarEmpty>Drop audio file(s)</SidebarEmpty>
-            )}
-          </SidebarInner>
-        </Sidebar>
-        <EditorPane>
-          {selectedFile ? (
-            <WaveEditor
-              file={selectedFile}
-              settings={settings}
-              audioContext={audioCtx}
-              isSidebarVisible={isSidebarVisible}
-              onToggleSidebar={() => {
-                setIsSidebarVisible((prev) => !prev)
-              }}
-              onUpdateFile={updateFile}
-            />
-          ) : (
-            <EditorEmpty>
-              Drop audio file(s) in the sidebar to begin.
-            </EditorEmpty>
-          )}
-        </EditorPane>
+        {bulkMode ? (
+          <BulkView
+            files={files}
+            settings={settings}
+            audioContext={audioCtx}
+            onExit={exitBulkMode}
+            onUpdateFile={updateFile}
+            onRemoveFile={removeFile}
+          />
+        ) : (
+          <>
+            <Sidebar
+              isVisible={isSidebarVisible}
+              isDragActive={isDragActive}
+              aria-hidden={!isSidebarVisible}
+              {...eventHandlers}
+            >
+              {files.length > 0 ? (
+                <SidebarHeader>
+                  <IconButton
+                    name="Checklist"
+                    aria-label="Enter bulk mode"
+                    title="Bulk mode"
+                    onClick={enterBulkMode}
+                  />
+                </SidebarHeader>
+              ) : null}
+              <SidebarInner>
+                {files.length ? (
+                  <WaveGrid
+                    files={files}
+                    selectedId={sidebarSelectedFileId}
+                    settings={settings}
+                    audioContext={audioCtx}
+                    onSelect={setSidebarSelectedFileId}
+                    onEdit={onEditFile}
+                    onRemove={removeFile}
+                    onUpdateFile={updateFile}
+                  />
+                ) : (
+                  <SidebarEmpty>Drop audio file(s)</SidebarEmpty>
+                )}
+              </SidebarInner>
+            </Sidebar>
+            <EditorPane>
+              {selectedFile ? (
+                <WaveEditor
+                  file={selectedFile}
+                  settings={settings}
+                  audioContext={audioCtx}
+                  isSidebarVisible={isSidebarVisible}
+                  onToggleSidebar={() => {
+                    setIsSidebarVisible((prev) => !prev)
+                  }}
+                  onUpdateFile={updateFile}
+                />
+              ) : (
+                <EditorEmpty>
+                  Drop audio file(s) in the sidebar to begin.
+                </EditorEmpty>
+              )}
+            </EditorPane>
+          </>
+        )}
         {isLoadingFiles ? (
           <LoadingOverlay>
             <LoadingSpinner />

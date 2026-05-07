@@ -19,6 +19,7 @@ import ClearAll from '@material-symbols/svg-400/rounded/clear_all-fill.svg?react
 import ZoomFit from '@material-symbols/svg-400/rounded/fit_screen-fill.svg?react'
 import Stop from '@material-symbols/svg-400/rounded/stop-fill.svg?react'
 import Back from '@material-symbols/svg-400/rounded/arrow_back-fill.svg?react'
+import Checklist from '@material-symbols/svg-400/rounded/checklist-fill.svg?react'
 
 import styled from '@emotion/styled'
 
@@ -44,6 +45,7 @@ const icons = {
   ZoomFit,
   Stop,
   Back,
+  Checklist,
 }
 
 type IconName = keyof typeof icons

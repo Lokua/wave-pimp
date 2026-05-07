@@ -4,9 +4,11 @@ import styled from '@emotion/styled'
 import type { AudioFile, Settings } from './types'
 import WaveCard from './WaveCard'
 
-const Grid = styled.div`
-  display: flex;
+const Grid = styled.div<{ layout: 'list' | 'grid' }>`
+  display: ${({ layout }) => (layout === 'grid' ? 'grid' : 'flex')};
   flex-direction: column;
+  grid-template-columns: ${({ layout }) =>
+    layout === 'grid' ? 'repeat(auto-fill, minmax(360px, 1fr))' : 'none'};
   gap: 16px;
   width: 100%;
   outline: none;
@@ -17,6 +19,7 @@ type WaveGridProps = {
   selectedId: string | null
   settings: Settings
   audioContext: AudioContext
+  layout?: 'list' | 'grid'
   onSelect: (id: string) => void
   onEdit: (file: AudioFile) => void
   onRemove: (fileId: string) => void
@@ -28,6 +31,7 @@ export default function WaveGrid({
   selectedId,
   settings,
   audioContext,
+  layout = 'list',
   onSelect,
   onEdit,
   onRemove,
@@ -98,6 +102,7 @@ export default function WaveGrid({
   return (
     <Grid
       ref={gridRef}
+      layout={layout}
       tabIndex={0}
       role="listbox"
       aria-activedescendant={
