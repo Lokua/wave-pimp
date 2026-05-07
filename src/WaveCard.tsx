@@ -13,7 +13,7 @@ import Toast from './components/Toast'
 import useToast from './components/useToast'
 import { useSaveWav } from './export'
 
-const Card = styled.article<{ isSelected: boolean }>`
+const Card = styled.article<{ isSelected: boolean; isBulkMode: boolean }>`
   position: relative;
   display: flex;
   flex-direction: column;
@@ -27,10 +27,31 @@ const Card = styled.article<{ isSelected: boolean }>`
     isSelected ? '0 0 0 2px var(--text-color)' : 'none'};
   border-radius: 2px;
   background: var(--bg-controls);
+  cursor: ${({ isBulkMode }) => (isBulkMode ? 'pointer' : 'default')};
 `
 
-const Title = styled.h3`
+const SelectionBadge = styled.div`
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--text-color);
+  color: var(--bg-main);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  z-index: 1;
+`
+
+const Title = styled.h3<{ hasBadge: boolean }>`
   margin: 0;
+  padding-right: ${({ hasBadge }) => (hasBadge ? '32px' : '0')};
   font-size: 16px;
   font-weight: 600;
 `
@@ -110,6 +131,10 @@ type WaveCardProps = {
   settings: Settings
   audioContext: AudioContext
   isSelected: boolean
+  isBulkMode?: boolean
+  bulkSelectionPosition?: number
+  showEditAction?: boolean
+  isDisabled?: boolean
   shouldRename: boolean
   renameSignal: number
   onSelect: () => void
@@ -128,6 +153,10 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
     settings,
     audioContext,
     isSelected,
+    isBulkMode = false,
+    bulkSelectionPosition,
+    showEditAction = true,
+    isDisabled = false,
     shouldRename,
     renameSignal,
     onSelect,
@@ -260,13 +289,17 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
   }
 
   function onClickCanvas(event: React.MouseEvent<HTMLCanvasElement>) {
+    event.stopPropagation()
+    if (isDisabled) return
     const x = event.nativeEvent.offsetX
     const clickedSample = Math.floor(x * samplesPerPixelRef.current)
     const clickedTime = clickedSample / sampleRate
     playbackRef.current.seek(clickedTime)
   }
 
-  function onClickPlay() {
+  function onClickPlay(event: React.MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    if (isDisabled) return
     if (playbackState.isPlaying) {
       playbackRef.current.stop()
       playbackRef.current.play({
@@ -278,7 +311,9 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
     playbackRef.current.play()
   }
 
-  function onClickStop() {
+  function onClickStop(event: React.MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    if (isDisabled) return
     if (playbackState.isPlaying) {
       playbackRef.current.pause()
     } else {
@@ -286,12 +321,15 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
     }
   }
 
-  function onClickEdit() {
+  function onClickEdit(event: React.MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    if (isDisabled) return
     onEdit(file)
   }
 
   function onClickRemove(event: React.MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
+    if (isDisabled) return
     onRemove(file.id)
   }
 
@@ -348,13 +386,24 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
     <Card
       id={id}
       isSelected={isSelected}
+      isBulkMode={isBulkMode}
       role="option"
       aria-selected={isSelected}
       onClick={onSelect}
       ref={ref}
       data-wave-card="true"
     >
-      <Title onDoubleClick={onDoubleClickTitle}>{file.name}</Title>
+      {bulkSelectionPosition ? (
+        <SelectionBadge aria-label={`Selection ${bulkSelectionPosition}`}>
+          {bulkSelectionPosition}
+        </SelectionBadge>
+      ) : null}
+      <Title
+        hasBadge={bulkSelectionPosition != null}
+        onDoubleClick={onDoubleClickTitle}
+      >
+        {file.name}
+      </Title>
       <Actions>
         <IconButton
           type="button"
@@ -362,6 +411,7 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
           aria-label="Play"
           title="Play"
           onClick={onClickPlay}
+          disabled={isDisabled}
         />
         <IconButton
           type="button"
@@ -369,6 +419,7 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
           aria-label={playbackState.isPlaying ? 'Pause' : 'Stop'}
           title={playbackState.isPlaying ? 'Pause' : 'Stop'}
           onClick={onClickStop}
+          disabled={isDisabled}
         />
         <IconButton
           type="button"
@@ -376,15 +427,19 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
           aria-label="Remove from sidebar"
           title="Remove from sidebar"
           onClick={onClickRemove}
+          disabled={isDisabled}
           style={{ marginLeft: 'auto' }}
         />
-        <IconButton
-          type="button"
-          name="Edit"
-          aria-label="Load in editor"
-          title="Load in editor (Enter)"
-          onClick={onClickEdit}
-        />
+        {showEditAction ? (
+          <IconButton
+            type="button"
+            name="Edit"
+            aria-label="Load in editor"
+            title="Load in editor (Enter)"
+            onClick={onClickEdit}
+            disabled={isDisabled}
+          />
+        ) : null}
       </Actions>
       <WaveformCanvas
         nChannels={nChannels}

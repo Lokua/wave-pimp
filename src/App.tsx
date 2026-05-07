@@ -1,16 +1,17 @@
 import styled from '@emotion/styled'
 import { useEffect, useMemo, useState } from 'react'
-
-import { AudioFile, Settings } from './types'
-import useDropArea from './useDropArea'
-import WaveEditor from './WaveEditor'
 import { parseBlob } from 'music-metadata'
-import SettingsModal from './SettingsModal'
-import WaveGrid from './WaveGrid'
+
 import BulkView from './BulkView'
-import IconButton from './components/IconButton'
+import GenerateView from './GenerateView'
+import SettingsModal from './SettingsModal'
+import WaveEditor from './WaveEditor'
+import type { AudioFile, Settings } from './types'
+import useDropArea from './useDropArea'
 
 const audioCtx = new AudioContext()
+
+type Workspace = 'files' | 'generate' | 'edit'
 
 const Container = styled.div`
   display: flex;
@@ -35,6 +36,34 @@ const Titlebar = styled.div`
   z-index: 10;
 `
 
+const TitlebarNav = styled.nav`
+  -webkit-app-region: no-drag;
+  position: absolute;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+`
+
+const NavButton = styled.button<{ isActive: boolean }>`
+  padding: 4px 6px 5px;
+  border: 0;
+  border-bottom: 2px solid
+    ${({ isActive }) => (isActive ? 'var(--text-color)' : 'transparent')};
+  background: transparent;
+  font-size: 12px;
+
+  &:hover {
+    background: transparent;
+    border-bottom-color: var(--text-color);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+`
+
 const TitlebarFileName = styled.h3`
   margin: 0;
   font-size: 16px;
@@ -44,68 +73,26 @@ const TitlebarFileName = styled.h3`
   text-overflow: ellipsis;
 `
 
-const Content = styled.div<{ isSidebarVisible: boolean }>`
+const Shell = styled.div`
   position: relative;
   flex: 1;
   display: flex;
   min-height: 0;
-  padding: 6px 12px 0px;
-  gap: ${({ isSidebarVisible }) => (isSidebarVisible ? '12px' : '0')};
+  padding: 6px 12px 0;
 `
 
-const Sidebar = styled.aside<{ isVisible: boolean; isDragActive: boolean }>`
+const WorkspacePane = styled.section<{ isDragActive: boolean }>`
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  flex: 0 0 ${({ isVisible }) => (isVisible ? '420px' : '0px')};
-  min-width: 0;
-  overflow: hidden;
-  border: ${({ isVisible, isDragActive }) =>
-    isVisible && isDragActive
-      ? '2px dashed var(--text-color)'
-      : '0 solid transparent'};
+  border: ${({ isDragActive }) =>
+    isDragActive ? '2px dashed var(--text-color)' : '0 solid transparent'};
   background: ${({ isDragActive }) =>
     isDragActive ? 'rgba(100, 149, 237, 0.12)' : 'transparent'};
-  opacity: ${({ isVisible }) => (isVisible ? 1 : 0)};
-  pointer-events: ${({ isVisible }) => (isVisible ? 'auto' : 'none')};
 `
 
-const SidebarInner = styled.div`
-  flex: 1;
-  width: 420px;
-  max-width: 100%;
-  min-height: 0;
-  overflow: auto;
-  padding: 24px 12px 12px;
-`
-
-const SidebarHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-  width: 100%;
-  min-height: 28px;
-  flex-shrink: 0;
-  padding: 0 8px;
-`
-
-const SidebarEmpty = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100%;
-  padding: 24px;
-  text-align: center;
-`
-
-const EditorPane = styled.section`
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-`
-
-const EditorEmpty = styled.div`
+const WorkspaceEmpty = styled.div`
   flex: 1;
   display: flex;
   align-items: center;
@@ -113,6 +100,8 @@ const EditorEmpty = styled.div`
   text-align: center;
   padding: 24px;
 `
+
+const FilesEmpty = styled(WorkspaceEmpty)``
 
 const LoadingOverlay = styled.div`
   position: absolute;
@@ -156,14 +145,15 @@ function getAudioFileKey(file: AudioFile) {
 
 export default function App() {
   const [files, setFiles] = useState<AudioFile[]>([])
-  const [sidebarSelectedFileId, setSidebarSelectedFileId] = useState<
-    string | null
-  >(null)
+  const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
   const [editorFileId, setEditorFileId] = useState<string | null>(null)
-  const [isSidebarVisible, setIsSidebarVisible] = useState(true)
+  const [activeWorkspace, setActiveWorkspace] =
+    useState<Workspace>('files')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isLoadingFiles, setIsLoadingFiles] = useState(false)
-  const [bulkMode, setBulkMode] = useState(false)
+  const [filesSelection, setFilesSelection] = useState<string[]>([])
+  const [isFilesProcessing, setIsFilesProcessing] = useState(false)
+  const [nextFrameNumber, setNextFrameNumber] = useState(1)
   const [settings, setSettings] = useState<Settings>({
     sampleRate: 48000,
     bitDepth: 24,
@@ -201,7 +191,6 @@ export default function App() {
           )
 
           const metadata = await parseBlob(file)
-
           const filePath = (file as File & { path?: string }).path
           if (
             metadata.format.duration == null ||
@@ -228,6 +217,8 @@ export default function App() {
             sampleRate: metadata.format.sampleRate,
             bitDepth: metadata.format.bitsPerSample,
             channels: metadata.format.numberOfChannels,
+            sampleCount:
+              metadata.format.numberOfSamples ?? audioBuffer.length,
             buffer,
             audioBuffer,
           }
@@ -250,17 +241,41 @@ export default function App() {
     }
   })
 
-  function onEditFile(file: AudioFile) {
+  function openInEditor(file: AudioFile) {
     setEditorFileId(file.id)
-    setSidebarSelectedFileId(file.id)
+    setSelectedFileId(file.id)
+    setActiveWorkspace('edit')
   }
 
-  function enterBulkMode() {
-    setBulkMode(true)
+  function openEditWorkspace() {
+    if (selectedFileId) {
+      setEditorFileId(selectedFileId)
+    }
+    setActiveWorkspace('edit')
   }
 
-  function exitBulkMode() {
-    setBulkMode(false)
+  function toggleFilesSelection(fileId: string) {
+    setFilesSelection((prev) => {
+      if (prev.includes(fileId)) {
+        return prev.filter((id) => id !== fileId)
+      }
+      return [...prev, fileId]
+    })
+  }
+
+  function completeFilesConcat(file: AudioFile) {
+    setFiles((prev) => [...prev, file])
+    setEditorFileId(file.id)
+    setSelectedFileId(file.id)
+    setFilesSelection([])
+    setIsFilesProcessing(false)
+    setActiveWorkspace('edit')
+  }
+
+  function addGeneratedFile(file: AudioFile) {
+    setFiles((prev) => [...prev, file])
+    setSelectedFileId(file.id)
+    setNextFrameNumber((prev) => prev + 1)
   }
 
   function updateFile(next: AudioFile) {
@@ -269,34 +284,29 @@ export default function App() {
 
   function removeFile(fileId: string) {
     setFiles((prev) => prev.filter((item) => item.id !== fileId))
+    setFilesSelection((prev) => prev.filter((id) => id !== fileId))
+    if (selectedFileId === fileId) setSelectedFileId(null)
+    if (editorFileId === fileId) setEditorFileId(null)
   }
 
   useEffect(() => {
     if (files.length === 0) {
-      setSidebarSelectedFileId(null)
+      setSelectedFileId(null)
       setEditorFileId(null)
-      setIsSidebarVisible(true)
       return
     }
 
     const firstFileId = files[0].id
+    const hasSelectedFile =
+      selectedFileId != null && files.some((item) => item.id === selectedFileId)
     const hasEditorFile =
       editorFileId != null && files.some((item) => item.id === editorFileId)
-    const nextEditorFileId = hasEditorFile ? editorFileId : firstFileId
 
-    if (!hasEditorFile) {
-      setEditorFileId(firstFileId)
-    }
+    if (!hasSelectedFile) setSelectedFileId(firstFileId)
+    if (!hasEditorFile) setEditorFileId(firstFileId)
+  }, [editorFileId, files, selectedFileId])
 
-    const hasSidebarSelection =
-      sidebarSelectedFileId != null &&
-      files.some((item) => item.id === sidebarSelectedFileId)
-    if (!hasSidebarSelection) {
-      setSidebarSelectedFileId(nextEditorFileId)
-    }
-  }, [editorFileId, files, sidebarSelectedFileId])
-
-  const selectedFile = useMemo(() => {
+  const editorFile = useMemo(() => {
     if (!editorFileId) return null
     return files.find((item) => item.id === editorFileId) ?? null
   }, [editorFileId, files])
@@ -312,99 +322,96 @@ export default function App() {
     }
   }, [])
 
-  useEffect(() => {
-    if (!bulkMode) return
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        setBulkMode(false)
-      }
+  function renderWorkspace() {
+    if (activeWorkspace === 'files') {
+      return files.length ? (
+        <BulkView
+          files={files}
+          settings={settings}
+          audioContext={audioCtx}
+          selectedIds={filesSelection}
+          onToggleSelection={toggleFilesSelection}
+          onProcessingChange={setIsFilesProcessing}
+          onConcatComplete={completeFilesConcat}
+          onUpdateFile={updateFile}
+          onRemoveFile={removeFile}
+          onEditFile={openInEditor}
+        />
+      ) : (
+        <FilesEmpty>Drop audio file(s) or generate a frame.</FilesEmpty>
+      )
     }
 
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      window.removeEventListener('keydown', onKeyDown)
+    if (activeWorkspace === 'generate') {
+      return (
+        <GenerateView
+          settings={settings}
+          audioContext={audioCtx}
+          nextFrameNumber={nextFrameNumber}
+          onAddFile={addGeneratedFile}
+        />
+      )
     }
-  }, [bulkMode])
+
+    if (!editorFile) {
+      return <WorkspaceEmpty>Select a file to edit.</WorkspaceEmpty>
+    }
+
+    return (
+      <WaveEditor
+        file={editorFile}
+        settings={settings}
+        audioContext={audioCtx}
+        isSidebarVisible
+        onToggleSidebar={() => undefined}
+        showSidebarToggle={false}
+        onUpdateFile={updateFile}
+      />
+    )
+  }
 
   return (
     <Container>
       <Titlebar>
-        <TitlebarFileName>{selectedFile?.name ?? ''}</TitlebarFileName>
+        <TitlebarFileName>{editorFile?.name ?? ''}</TitlebarFileName>
+        <TitlebarNav aria-label="Tools">
+          <NavButton
+            type="button"
+            isActive={activeWorkspace === 'files'}
+            disabled={isFilesProcessing}
+            onClick={() => setActiveWorkspace('files')}
+          >
+            Files
+          </NavButton>
+          <NavButton
+            type="button"
+            isActive={activeWorkspace === 'edit'}
+            disabled={isFilesProcessing}
+            onClick={openEditWorkspace}
+          >
+            Edit
+          </NavButton>
+          <NavButton
+            type="button"
+            isActive={activeWorkspace === 'generate'}
+            disabled={isFilesProcessing}
+            onClick={() => setActiveWorkspace('generate')}
+          >
+            Generate
+          </NavButton>
+        </TitlebarNav>
       </Titlebar>
-      <Content isSidebarVisible={isSidebarVisible}>
-        {bulkMode ? (
-          <BulkView
-            files={files}
-            settings={settings}
-            audioContext={audioCtx}
-            onExit={exitBulkMode}
-            onUpdateFile={updateFile}
-            onRemoveFile={removeFile}
-          />
-        ) : (
-          <>
-            <Sidebar
-              isVisible={isSidebarVisible}
-              isDragActive={isDragActive}
-              aria-hidden={!isSidebarVisible}
-              {...eventHandlers}
-            >
-              {files.length > 0 ? (
-                <SidebarHeader>
-                  <IconButton
-                    name="Checklist"
-                    aria-label="Enter bulk mode"
-                    title="Bulk mode"
-                    onClick={enterBulkMode}
-                  />
-                </SidebarHeader>
-              ) : null}
-              <SidebarInner>
-                {files.length ? (
-                  <WaveGrid
-                    files={files}
-                    selectedId={sidebarSelectedFileId}
-                    settings={settings}
-                    audioContext={audioCtx}
-                    onSelect={setSidebarSelectedFileId}
-                    onEdit={onEditFile}
-                    onRemove={removeFile}
-                    onUpdateFile={updateFile}
-                  />
-                ) : (
-                  <SidebarEmpty>Drop audio file(s)</SidebarEmpty>
-                )}
-              </SidebarInner>
-            </Sidebar>
-            <EditorPane>
-              {selectedFile ? (
-                <WaveEditor
-                  file={selectedFile}
-                  settings={settings}
-                  audioContext={audioCtx}
-                  isSidebarVisible={isSidebarVisible}
-                  onToggleSidebar={() => {
-                    setIsSidebarVisible((prev) => !prev)
-                  }}
-                  onUpdateFile={updateFile}
-                />
-              ) : (
-                <EditorEmpty>
-                  Drop audio file(s) in the sidebar to begin.
-                </EditorEmpty>
-              )}
-            </EditorPane>
-          </>
-        )}
+      <Shell>
+        <WorkspacePane isDragActive={isDragActive} {...eventHandlers}>
+          {renderWorkspace()}
+        </WorkspacePane>
         {isLoadingFiles ? (
           <LoadingOverlay>
             <LoadingSpinner />
             <div>Loading audio file(s)...</div>
           </LoadingOverlay>
         ) : null}
-      </Content>
+      </Shell>
       <SettingsModal
         isOpen={isSettingsOpen}
         settings={settings}

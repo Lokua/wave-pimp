@@ -42,7 +42,15 @@ type InfoPanelProps = {
   samplesPerPixel: number
 }
 
+function formatDetailDuration(seconds: number) {
+  if (!Number.isFinite(seconds)) return '0 ms'
+  if (seconds < 1) return `${(seconds * 1000).toFixed(2)} ms`
+  return `${seconds.toFixed(3)} s`
+}
+
 export default function InfoPanel({ file, samplesPerPixel }: InfoPanelProps) {
+  const sampleCount = file.sampleCount ?? file.audioBuffer.length
+
   return (
     <Panel>
       <Item>
@@ -52,6 +60,14 @@ export default function InfoPanel({ file, samplesPerPixel }: InfoPanelProps) {
       <Item>
         <Label>Size:</Label>
         <Value>{formatSize(file.size)}</Value>
+      </Item>
+      <Item>
+        <Label>Duration:</Label>
+        <Value>{formatDetailDuration(file.audioBuffer.duration)}</Value>
+      </Item>
+      <Item>
+        <Label>Samples:</Label>
+        <Value>{sampleCount.toLocaleString()}</Value>
       </Item>
       <Item>
         <Label>Sample Rate:</Label>

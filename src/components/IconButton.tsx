@@ -20,6 +20,8 @@ import ZoomFit from '@material-symbols/svg-400/rounded/fit_screen-fill.svg?react
 import Stop from '@material-symbols/svg-400/rounded/stop-fill.svg?react'
 import Back from '@material-symbols/svg-400/rounded/arrow_back-fill.svg?react'
 import Checklist from '@material-symbols/svg-400/rounded/checklist-fill.svg?react'
+import Tune from '@material-symbols/svg-400/rounded/tune-fill.svg?react'
+import Join from '@material-symbols/svg-400/rounded/join-fill.svg?react'
 
 import styled from '@emotion/styled'
 
@@ -46,6 +48,8 @@ const icons = {
   Stop,
   Back,
   Checklist,
+  Tune,
+  Join,
 }
 
 type IconName = keyof typeof icons

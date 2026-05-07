@@ -48,6 +48,7 @@ export default function useEdits({
         ...file,
         audioBuffer: result,
         duration: result.duration,
+        sampleCount: result.length,
       }
       playbackRef.current.setBuffer(result)
       onUpdateFile(nextFile)
@@ -72,6 +73,7 @@ export default function useEdits({
       ...file,
       audioBuffer: nextBuffer,
       duration: nextBuffer.duration,
+      sampleCount: nextBuffer.length,
     })
     if (!preserveSelection) {
       resetSelection()

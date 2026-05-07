@@ -53,6 +53,7 @@ type WaveEditorControlsProps = {
   onClickSaveAs: () => void
   isSidebarVisible: boolean
   onToggleSidebar: () => void
+  showSidebarToggle?: boolean
   canZoomIn: boolean
   canZoomOut: boolean
 }
@@ -77,6 +78,7 @@ export default function WaveEditorControls({
   onClickSaveAs,
   isSidebarVisible,
   onToggleSidebar,
+  showSidebarToggle = true,
   canZoomIn,
   canZoomOut,
 }: WaveEditorControlsProps) {
@@ -84,25 +86,29 @@ export default function WaveEditorControls({
   const sidebarShortcutLabel = `${metaKeyLabel}+\\`
   return (
     <Controls>
-      <Section>
-        <IconButton
-          type="button"
-          name="Back"
-          aria-label={isSidebarVisible ? 'Hide sidebar' : 'Show sidebar'}
-          title={`${isSidebarVisible ? 'Hide' : 'Show'} sidebar (${sidebarShortcutLabel})`}
-          onClick={onToggleSidebar}
-          on={isSidebarVisible}
-          isToggle
-          style={
-            isSidebarVisible
-              ? undefined
-              : {
-                  transform: 'scaleX(-1)',
-                }
-          }
-        />
-      </Section>
-      <Divider />
+      {showSidebarToggle ? (
+        <>
+          <Section>
+            <IconButton
+              type="button"
+              name="Back"
+              aria-label={isSidebarVisible ? 'Hide sidebar' : 'Show sidebar'}
+              title={`${isSidebarVisible ? 'Hide' : 'Show'} sidebar (${sidebarShortcutLabel})`}
+              onClick={onToggleSidebar}
+              on={isSidebarVisible}
+              isToggle
+              style={
+                isSidebarVisible
+                  ? undefined
+                  : {
+                      transform: 'scaleX(-1)',
+                    }
+              }
+            />
+          </Section>
+          <Divider />
+        </>
+      ) : null}
       <Section>
         <IconButton
           type="button"

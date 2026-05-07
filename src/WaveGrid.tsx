@@ -20,6 +20,10 @@ type WaveGridProps = {
   settings: Settings
   audioContext: AudioContext
   layout?: 'list' | 'grid'
+  isBulkMode?: boolean
+  bulkSelection?: string[]
+  isDisabled?: boolean
+  showCardEditAction?: boolean
   onSelect: (id: string) => void
   onEdit: (file: AudioFile) => void
   onRemove: (fileId: string) => void
@@ -32,6 +36,10 @@ export default function WaveGrid({
   settings,
   audioContext,
   layout = 'list',
+  isBulkMode = false,
+  bulkSelection = [],
+  isDisabled = false,
+  showCardEditAction = true,
   onSelect,
   onEdit,
   onRemove,
@@ -52,6 +60,7 @@ export default function WaveGrid({
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (isDisabled) return
     if (files.length === 0) return
     if (
       event.key !== 'ArrowDown' &&
@@ -124,10 +133,24 @@ export default function WaveGrid({
           file={file}
           settings={settings}
           audioContext={audioContext}
-          isSelected={file.id === selectedId}
+          isSelected={
+            isBulkMode
+              ? bulkSelection.includes(file.id)
+              : file.id === selectedId
+          }
+          bulkSelectionPosition={
+            isBulkMode
+              ? bulkSelection.findIndex((id) => id === file.id) + 1 ||
+                undefined
+              : undefined
+          }
+          isBulkMode={isBulkMode}
+          showEditAction={showCardEditAction}
+          isDisabled={isDisabled}
           shouldRename={file.id === renameTargetId}
           renameSignal={renameSignal}
           onSelect={() => {
+            if (isDisabled) return
             onSelect(file.id)
             focusGrid()
           }}
