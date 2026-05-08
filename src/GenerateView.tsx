@@ -1,12 +1,30 @@
 import styled from '@emotion/styled'
 import NumberBox from '@lokua/number-box'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { AudioFile, Settings } from './types'
+import IconButton from './components/IconButton'
 import { encodeWav } from './export'
+import useAudioPlayback from './useAudioPlayback'
 import useElementSize from './useElementSize'
 
 const FRAME_LENGTH = 2048
+const DEFAULT_MIDI_NOTE = 36
+
+const MIDI_NOTE_NAMES = [
+  'C',
+  'C#',
+  'D',
+  'D#',
+  'E',
+  'F',
+  'F#',
+  'G',
+  'G#',
+  'A',
+  'A#',
+  'B',
+]
 
 const Container = styled.div`
   flex: 1;
@@ -18,11 +36,39 @@ const Container = styled.div`
 const Toolbar = styled.div`
   display: flex;
   align-items: center;
-  gap: 12px;
   flex-wrap: wrap;
+  gap: 8px;
   flex-shrink: 0;
   min-height: 32px;
   padding: 4px 12px;
+  border-bottom: 1px solid var(--border-color);
+`
+
+const PitchControl = styled.div`
+  display: grid;
+  grid-template-columns: 150px 136px;
+  align-items: center;
+  gap: 8px;
+`
+
+const PitchLabel = styled.span`
+  font-size: 11px;
+  min-width: 136px;
+  white-space: nowrap;
+`
+
+const Body = styled.div`
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  min-height: 0;
+`
+
+const ControlsPane = styled.div`
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  border-right: 1px solid var(--border-color);
 `
 
 const PreviewPane = styled.div`
@@ -36,15 +82,20 @@ const PreviewPane = styled.div`
 `
 
 const ControlGroup = styled.fieldset`
-  display: inline-grid;
-  grid-template-columns: minmax(88px, 140px) 58px minmax(52px, 72px);
-  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
-  width: auto;
-  min-width: 0;
-  margin: 0;
+  width: 100%;
+  margin: 0 0 14px;
   padding: 0;
   border: 0;
+`
+
+const ControlInputs = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 58px;
+  align-items: center;
+  gap: 8px;
 `
 
 const Label = styled.label`
@@ -118,7 +169,7 @@ const Range = styled.input`
 const SelectWrapper = styled.span`
   position: relative;
   display: inline-block;
-  margin: 1px;
+  width: 100%;
 
   &::after {
     content: '▼';
@@ -135,7 +186,7 @@ const SelectWrapper = styled.span`
 const Select = styled.select`
   appearance: none;
   height: 22px;
-  width: 100px;
+  width: 100%;
   margin: 0;
   padding: 0 24px 0 6px;
   border: 1px solid var(--border-color);
@@ -155,22 +206,6 @@ const Select = styled.select`
   &:focus-visible {
     box-shadow: 0 0 0 2px var(--text-color);
   }
-`
-
-const SelectGroup = styled(ControlGroup)`
-  grid-template-columns: 100px minmax(52px, 72px);
-  width: auto;
-
-  ${Label} {
-    max-width: 100%;
-    order: 1;
-  }
-`
-
-const ActionGroup = styled(ControlGroup)`
-  display: inline-flex;
-  align-items: center;
-  width: auto;
 `
 
 const AddButton = styled.button`
@@ -334,6 +369,20 @@ function formatDefaultName(frameNumber: number) {
   return `frame-${String(frameNumber).padStart(3, '0')}.wav`
 }
 
+function getMidiNoteLabel(note: number) {
+  const name = MIDI_NOTE_NAMES[note % MIDI_NOTE_NAMES.length]
+  const octave = Math.floor(note / MIDI_NOTE_NAMES.length) - 1
+  return `${name}${octave}`
+}
+
+function getMidiNoteFrequency(note: number) {
+  return 440 * 2 ** ((note - 69) / 12)
+}
+
+function formatMidiNoteDisplay(note: number) {
+  return `${note} ${getMidiNoteLabel(note)} ${getMidiNoteFrequency(note).toFixed(2)} Hz`
+}
+
 export default function GenerateView({
   settings,
   audioContext,
@@ -350,7 +399,9 @@ export default function GenerateView({
 }: GenerateViewProps) {
   const canvasWrapRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const [midiNote, setMidiNote] = useState(DEFAULT_MIDI_NOTE)
   const { width, height } = useElementSize(canvasWrapRef)
+  const midiNoteLabel = formatMidiNoteDisplay(midiNote)
 
   const samples = useMemo(
     () =>
@@ -362,6 +413,35 @@ export default function GenerateView({
       }),
     [harmonicCount, oddEvenBalance, phaseMode, rolloff],
   )
+
+  const previewBuffer = useMemo(() => {
+    const buffer = audioContext.createBuffer(
+      1,
+      FRAME_LENGTH,
+      settings.sampleRate,
+    )
+    buffer.copyToChannel(samples, 0)
+    return buffer
+  }, [audioContext, samples, settings.sampleRate])
+
+  const { playback: playbackRef, ...playbackState } = useAudioPlayback({
+    audioContext,
+    audioBuffer: previewBuffer,
+  })
+
+  useEffect(() => {
+    playbackRef.current.setBuffer(previewBuffer)
+    playbackRef.current.setLoopRegion({
+      startSeconds: 0,
+      endSeconds: previewBuffer.duration,
+    })
+  }, [playbackRef, previewBuffer])
+
+  useEffect(() => {
+    const baseFrequency = settings.sampleRate / FRAME_LENGTH
+    const targetFrequency = getMidiNoteFrequency(midiNote)
+    playbackRef.current.setPlaybackRate(targetFrequency / baseFrequency)
+  }, [midiNote, playbackRef, settings.sampleRate])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -401,10 +481,21 @@ export default function GenerateView({
     ctx.stroke()
   }, [height, samples, width])
 
+  function onClickPlayPause() {
+    playbackRef.current.setLoopRegion({
+      startSeconds: 0,
+      endSeconds: previewBuffer.duration,
+    })
+
+    if (playbackState.isPlaying) {
+      playbackRef.current.pause()
+    } else {
+      playbackRef.current.play()
+    }
+  }
+
   async function addToFiles() {
-    const buffer = audioContext.createBuffer(1, FRAME_LENGTH, settings.sampleRate)
-    buffer.copyToChannel(samples, 0)
-    const bytes = encodeWav(buffer, settings.bitDepth)
+    const bytes = encodeWav(previewBuffer, settings.bitDepth)
 
     const result = (await window.electron.invoke('save-wav', {
       bytes,
@@ -413,7 +504,8 @@ export default function GenerateView({
 
     if (result.canceled || !result.path) return
 
-    const name = result.path.split(/[\\/]/).pop() ?? formatDefaultName(nextFrameNumber)
+    const name =
+      result.path.split(/[\\/]/).pop() ?? formatDefaultName(nextFrameNumber)
 
     onAddFile({
       id: crypto.randomUUID(),
@@ -421,127 +513,160 @@ export default function GenerateView({
       filePath: result.path,
       size: bytes.byteLength,
       type: 'audio/wav',
-      duration: buffer.duration,
-      sampleRate: buffer.sampleRate,
+      duration: previewBuffer.duration,
+      sampleRate: previewBuffer.sampleRate,
       bitDepth: settings.bitDepth,
       channels: 1,
       sampleCount: FRAME_LENGTH,
-      audioBuffer: buffer,
+      audioBuffer: previewBuffer,
     })
   }
 
   return (
     <Container>
       <Toolbar>
-        <ControlGroup>
-          <Range
-            type="range"
-            min={1}
-            max={64}
-            step={1}
-            value={harmonicCount}
-            onChange={(event) => onHarmonicCountChange(Number(event.target.value))}
-          />
-          <StyledNumberBox
-            id="generate-harmonics"
-            min={1}
-            max={64}
-            step={1}
-            value={harmonicCount}
-            onChange={onHarmonicCountChange}
-            aria-label="Harmonics"
-          />
-          <Label htmlFor="generate-harmonics">Harmonics</Label>
-        </ControlGroup>
-        <ControlGroup>
+        <IconButton
+          type="button"
+          name={playbackState.isPlaying ? 'Pause' : 'Play'}
+          aria-label={playbackState.isPlaying ? 'Pause' : 'Play'}
+          title={playbackState.isPlaying ? 'Pause' : 'Play'}
+          onClick={onClickPlayPause}
+        />
+        <PitchControl>
           <Range
             type="range"
             min={0}
-            max={3}
-            step={0.05}
-            value={rolloff}
-            onChange={(event) => onRolloffChange(Number(event.target.value))}
+            max={127}
+            step={1}
+            value={midiNote}
+            aria-label="MIDI note"
+            onChange={(event) => setMidiNote(Number(event.target.value))}
           />
-          <StyledNumberBox
-            id="generate-rolloff"
-            min={0}
-            max={3}
-            step={0.05}
-            value={rolloff}
-            onChange={onRolloffChange}
-            aria-label="Rolloff"
-          />
-          <Label htmlFor="generate-rolloff">Rolloff</Label>
-        </ControlGroup>
-        <ControlGroup>
-          <Range
-            type="range"
-            min={-1}
-            max={1}
-            step={0.05}
-            value={oddEvenBalance}
-            onChange={(event) => onOddEvenBalanceChange(Number(event.target.value))}
-          />
-          <StyledNumberBox
-            id="generate-odd-even"
-            min={-1}
-            max={1}
-            step={0.05}
-            value={oddEvenBalance}
-            onChange={onOddEvenBalanceChange}
-            aria-label="Odd/even balance"
-          />
-          <Label htmlFor="generate-odd-even">Odd/Even</Label>
-        </ControlGroup>
-        <SelectGroup>
-          <Label htmlFor="generate-phase">Phase</Label>
-          <SelectWrapper>
-            <Select
-              id="generate-phase"
-              value={phaseMode}
-              onChange={(event) =>
-                onPhaseModeChange(event.target.value as PhaseMode)
-              }
-            >
-              <option value="aligned">Aligned</option>
-              <option value="cosine">Cosine</option>
-              <option value="alternating">Alternating</option>
-              <option value="quadrature">Quadrature</option>
-              <option value="random">Random</option>
-            </Select>
-          </SelectWrapper>
-        </SelectGroup>
-        <ActionGroup>
-          <AddButton type="button" onClick={addToFiles}>
-            Add to Files
-          </AddButton>
-        </ActionGroup>
+          <PitchLabel>{midiNoteLabel}</PitchLabel>
+        </PitchControl>
+        <AddButton type="button" onClick={addToFiles}>
+          Add to Files
+        </AddButton>
       </Toolbar>
-      <PreviewPane>
-        <CanvasWrap ref={canvasWrapRef}>
-          <Canvas ref={canvasRef} aria-label="Generated waveform preview" />
-        </CanvasWrap>
-        <InfoPanel>
-          <InfoItem>
-            <InfoLabel>Samples:</InfoLabel>
-            <InfoValue>{FRAME_LENGTH.toLocaleString()}</InfoValue>
-          </InfoItem>
-          <InfoItem>
-            <InfoLabel>Duration:</InfoLabel>
-            <InfoValue>
-              {((FRAME_LENGTH / settings.sampleRate) * 1000).toFixed(2)} ms
-            </InfoValue>
-          </InfoItem>
-          <InfoItem>
-            <InfoLabel>Sample Rate:</InfoLabel>
-            <InfoValue>{settings.sampleRate.toLocaleString()} Hz</InfoValue>
-          </InfoItem>
-          <InfoItem>
-            <InfoLabel>Channels:</InfoLabel>
-            <InfoValue>1</InfoValue>
-          </InfoItem>
-        </InfoPanel>
-      </PreviewPane>
+      <Body>
+        <ControlsPane>
+          <ControlGroup>
+            <Label htmlFor="generate-harmonics">Harmonics</Label>
+            <ControlInputs>
+              <Range
+                type="range"
+                min={1}
+                max={64}
+                step={1}
+                value={harmonicCount}
+                onChange={(event) =>
+                  onHarmonicCountChange(Number(event.target.value))
+                }
+              />
+              <StyledNumberBox
+                id="generate-harmonics"
+                min={1}
+                max={64}
+                step={1}
+                value={harmonicCount}
+                onChange={onHarmonicCountChange}
+                aria-label="Harmonics"
+              />
+            </ControlInputs>
+          </ControlGroup>
+          <ControlGroup>
+            <Label htmlFor="generate-rolloff">Rolloff</Label>
+            <ControlInputs>
+              <Range
+                type="range"
+                min={0}
+                max={3}
+                step={0.05}
+                value={rolloff}
+                onChange={(event) =>
+                  onRolloffChange(Number(event.target.value))
+                }
+              />
+              <StyledNumberBox
+                id="generate-rolloff"
+                min={0}
+                max={3}
+                step={0.05}
+                value={rolloff}
+                onChange={onRolloffChange}
+                aria-label="Rolloff"
+              />
+            </ControlInputs>
+          </ControlGroup>
+          <ControlGroup>
+            <Label htmlFor="generate-odd-even">Odd/Even</Label>
+            <ControlInputs>
+              <Range
+                type="range"
+                min={-1}
+                max={1}
+                step={0.05}
+                value={oddEvenBalance}
+                onChange={(event) =>
+                  onOddEvenBalanceChange(Number(event.target.value))
+                }
+              />
+              <StyledNumberBox
+                id="generate-odd-even"
+                min={-1}
+                max={1}
+                step={0.05}
+                value={oddEvenBalance}
+                onChange={onOddEvenBalanceChange}
+                aria-label="Odd/even balance"
+              />
+            </ControlInputs>
+          </ControlGroup>
+          <ControlGroup>
+            <Label htmlFor="generate-phase">Phase</Label>
+            <SelectWrapper>
+              <Select
+                id="generate-phase"
+                value={phaseMode}
+                onChange={(event) =>
+                  onPhaseModeChange(event.target.value as PhaseMode)
+                }
+              >
+                <option value="aligned">Aligned</option>
+                <option value="cosine">Cosine</option>
+                <option value="alternating">Alternating</option>
+                <option value="quadrature">Quadrature</option>
+                <option value="random">Random</option>
+              </Select>
+            </SelectWrapper>
+          </ControlGroup>
+        </ControlsPane>
+        <PreviewPane>
+          <CanvasWrap ref={canvasWrapRef}>
+            <Canvas ref={canvasRef} aria-label="Generated waveform preview" />
+          </CanvasWrap>
+          <InfoPanel>
+            <InfoItem>
+              <InfoLabel>Samples:</InfoLabel>
+              <InfoValue>{FRAME_LENGTH.toLocaleString()}</InfoValue>
+            </InfoItem>
+            <InfoItem>
+              <InfoLabel>Duration:</InfoLabel>
+              <InfoValue>
+                {((FRAME_LENGTH / settings.sampleRate) * 1000).toFixed(2)} ms
+              </InfoValue>
+            </InfoItem>
+            <InfoItem>
+              <InfoLabel>Sample Rate:</InfoLabel>
+              <InfoValue>{settings.sampleRate.toLocaleString()} Hz</InfoValue>
+            </InfoItem>
+            <InfoItem>
+              <InfoLabel>Channels:</InfoLabel>
+              <InfoValue>1</InfoValue>
+            </InfoItem>
+          </InfoPanel>
+        </PreviewPane>
+      </Body>
     </Container>
   )
 }

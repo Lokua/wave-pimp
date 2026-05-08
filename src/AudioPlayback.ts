@@ -28,6 +28,7 @@ export default class AudioPlayback {
   private startOffsetSeconds = 0
   private startTimeSeconds = 0
   private loopRegion: LoopRegion | null = null
+  private playbackRate = 1
 
   public isPlaying = false
 
@@ -57,8 +58,8 @@ export default class AudioPlayback {
     }
 
     const t =
-      this.audioContext.currentTime -
-      this.startTimeSeconds +
+      (this.audioContext.currentTime - this.startTimeSeconds) *
+        this.playbackRate +
       this.startOffsetSeconds
 
     if (this.loopRegion) {
@@ -98,6 +99,7 @@ export default class AudioPlayback {
 
     const node = this.audioContext.createBufferSource()
     node.buffer = this.audioBuffer
+    node.playbackRate.value = this.playbackRate
     node.connect(this.audioContext.destination)
 
     if (this.loopRegion) {
@@ -129,7 +131,9 @@ export default class AudioPlayback {
   pause() {
     if (!this.isPlaying) return
 
-    const played = this.audioContext.currentTime - this.startTimeSeconds
+    const played =
+      (this.audioContext.currentTime - this.startTimeSeconds) *
+      this.playbackRate
     this.startOffsetSeconds = this.clampTime(this.startOffsetSeconds + played)
 
     this.stopSourceNodeOnly()
@@ -169,6 +173,15 @@ export default class AudioPlayback {
 
     const resumeFromSeconds = this.getCurrentTimeSeconds()
     void this.play({ fromSeconds: resumeFromSeconds })
+  }
+
+  setPlaybackRate(rate: number) {
+    if (!Number.isFinite(rate) || rate <= 0) return
+
+    this.playbackRate = rate
+
+    if (!this.sourceNode) return
+    this.sourceNode.playbackRate.value = rate
   }
 
   private stopSourceNodeOnly() {
