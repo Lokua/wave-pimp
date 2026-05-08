@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { parseBlob } from 'music-metadata'
 
 import BulkView from './BulkView'
-import GenerateView from './GenerateView'
+import Generator from './Generator'
 import SettingsModal from './SettingsModal'
 import WaveEditor from './WaveEditor'
 import type { AudioFile, Settings } from './types'
@@ -352,7 +352,7 @@ export default function App() {
 
     if (activeWorkspace === 'generate') {
       return (
-        <GenerateView
+        <Generator
           settings={settings}
           audioContext={audioCtx}
           nextFrameNumber={nextFrameNumber}

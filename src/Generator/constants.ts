@@ -1,0 +1,10 @@
+export const FRAME_LENGTH = 2048
+export const DEFAULT_MIDI_NOTE = 36
+export const DEFAULT_HARMONIC_COUNT = 1
+export const DEFAULT_ROLLOFF = 1
+export const DEFAULT_ODD_EVEN_BALANCE = 0
+export const DEFAULT_PHASE_DISTORTION = 0
+export const DEFAULT_FM_AMOUNT = 0
+export const DEFAULT_FM_RATIO = 1
+export const DEFAULT_DRIVE = 0
+export const DEFAULT_FOLD = 0
