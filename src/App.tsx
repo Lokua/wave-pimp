@@ -7,7 +7,6 @@ import GenerateView from './GenerateView'
 import SettingsModal from './SettingsModal'
 import WaveEditor from './WaveEditor'
 import type { AudioFile, Settings } from './types'
-import type { PhaseMode } from './GenerateView'
 import useDropArea from './useDropArea'
 
 const audioCtx = new AudioContext()
@@ -158,7 +157,7 @@ export default function App() {
   const [harmonicCount, setHarmonicCount] = useState(1)
   const [rolloff, setRolloff] = useState(1)
   const [oddEvenBalance, setOddEvenBalance] = useState(0)
-  const [phaseMode, setPhaseMode] = useState<PhaseMode>('aligned')
+  const [phaseDistortion, setPhaseDistortion] = useState(0)
   const [settings, setSettings] = useState<Settings>({
     sampleRate: 48000,
     bitDepth: 24,
@@ -356,11 +355,11 @@ export default function App() {
           harmonicCount={harmonicCount}
           rolloff={rolloff}
           oddEvenBalance={oddEvenBalance}
-          phaseMode={phaseMode}
+          phaseDistortion={phaseDistortion}
           onHarmonicCountChange={setHarmonicCount}
           onRolloffChange={setRolloff}
           onOddEvenBalanceChange={setOddEvenBalance}
-          onPhaseModeChange={setPhaseMode}
+          onPhaseDistortionChange={setPhaseDistortion}
           onAddFile={addGeneratedFile}
         />
       )

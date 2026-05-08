@@ -10,6 +10,10 @@ import useElementSize from './useElementSize'
 
 const FRAME_LENGTH = 2048
 const DEFAULT_MIDI_NOTE = 36
+const DEFAULT_HARMONIC_COUNT = 1
+const DEFAULT_ROLLOFF = 1
+const DEFAULT_ODD_EVEN_BALANCE = 0
+const DEFAULT_PHASE_DISTORTION = 0
 
 const MIDI_NOTE_NAMES = [
   'C',
@@ -60,7 +64,7 @@ const PitchLabel = styled.span`
 const Body = styled.div`
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
   min-height: 0;
 `
 
@@ -93,9 +97,9 @@ const ControlGroup = styled.fieldset`
 
 const ControlInputs = styled.div`
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 58px;
+  grid-template-columns: minmax(0, 1fr) 58px 24px;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 `
 
 const Label = styled.label`
@@ -159,48 +163,6 @@ const Range = styled.input`
 
   &:active::-webkit-slider-thumb {
     background: var(--text-color);
-  }
-
-  &:focus-visible {
-    box-shadow: 0 0 0 2px var(--text-color);
-  }
-`
-
-const SelectWrapper = styled.span`
-  position: relative;
-  display: inline-block;
-  width: 100%;
-
-  &::after {
-    content: '▼';
-    position: absolute;
-    right: 8px;
-    top: 50%;
-    transform: translateY(-50%) scaleX(1.35);
-    color: var(--text-color);
-    pointer-events: none;
-    font-size: 8px;
-  }
-`
-
-const Select = styled.select`
-  appearance: none;
-  height: 22px;
-  width: 100%;
-  margin: 0;
-  padding: 0 24px 0 6px;
-  border: 1px solid var(--border-color);
-  border-radius: 2px;
-  background: var(--button-bg);
-  color: var(--text-color);
-  font-size: 10px;
-
-  &:focus {
-    outline: none;
-  }
-
-  &:hover {
-    border-color: var(--text-color);
   }
 
   &:focus-visible {
@@ -276,13 +238,6 @@ const InfoValue = styled.span`
   font-size: 12px;
 `
 
-export type PhaseMode =
-  | 'aligned'
-  | 'cosine'
-  | 'alternating'
-  | 'quadrature'
-  | 'random'
-
 type GenerateViewProps = {
   settings: Settings
   audioContext: AudioContext
@@ -290,11 +245,11 @@ type GenerateViewProps = {
   harmonicCount: number
   rolloff: number
   oddEvenBalance: number
-  phaseMode: PhaseMode
+  phaseDistortion: number
   onHarmonicCountChange: (v: number) => void
   onRolloffChange: (v: number) => void
   onOddEvenBalanceChange: (v: number) => void
-  onPhaseModeChange: (v: PhaseMode) => void
+  onPhaseDistortionChange: (v: number) => void
   onAddFile: (file: AudioFile) => void
 }
 
@@ -317,36 +272,37 @@ function removeDcAndNormalize(samples: Float32Array) {
   }
 }
 
-function getPhase(harmonic: number, mode: PhaseMode) {
-  if (mode === 'aligned') return 0
-  if (mode === 'cosine') return Math.PI / 2
-  if (mode === 'alternating') return harmonic % 2 === 0 ? Math.PI : 0
-  if (mode === 'quadrature') return (harmonic % 4) * (Math.PI / 2)
-  const x = Math.sin(harmonic * 12.9898) * 43758.5453
-  return (x - Math.floor(x)) * Math.PI * 2
-}
-
 function getOddEvenGain(harmonic: number, balance: number) {
   const isOdd = harmonic % 2 === 1
   if (isOdd) return balance > 0 ? 1 - balance : 1
   return balance < 0 ? 1 + balance : 1
 }
 
+function distortPhase(phase: number, amount: number) {
+  if (amount === 0) return phase
+
+  if (amount > 0) {
+    return phase ** (1 + amount * 4)
+  }
+
+  return 1 - (1 - phase) ** (1 + -amount * 4)
+}
+
 function renderAdditiveFrame({
   harmonicCount,
   rolloff,
   oddEvenBalance,
-  phaseMode,
+  phaseDistortion,
 }: {
   harmonicCount: number
   rolloff: number
   oddEvenBalance: number
-  phaseMode: PhaseMode
+  phaseDistortion: number
 }) {
   const samples = new Float32Array(FRAME_LENGTH)
 
   for (let i = 0; i < FRAME_LENGTH; i++) {
-    const phase = i / FRAME_LENGTH
+    const phase = distortPhase(i / FRAME_LENGTH, phaseDistortion)
     let value = 0
 
     for (let harmonic = 1; harmonic <= harmonicCount; harmonic++) {
@@ -355,7 +311,7 @@ function renderAdditiveFrame({
         getOddEvenGain(harmonic, oddEvenBalance)
       value +=
         gain *
-        Math.sin(Math.PI * 2 * harmonic * phase + getPhase(harmonic, phaseMode))
+        Math.sin(Math.PI * 2 * harmonic * phase)
     }
 
     samples[i] = value
@@ -390,11 +346,11 @@ export default function GenerateView({
   harmonicCount,
   rolloff,
   oddEvenBalance,
-  phaseMode,
+  phaseDistortion,
   onHarmonicCountChange,
   onRolloffChange,
   onOddEvenBalanceChange,
-  onPhaseModeChange,
+  onPhaseDistortionChange,
   onAddFile,
 }: GenerateViewProps) {
   const canvasWrapRef = useRef<HTMLDivElement | null>(null)
@@ -409,9 +365,9 @@ export default function GenerateView({
         harmonicCount,
         rolloff,
         oddEvenBalance,
-        phaseMode,
+        phaseDistortion,
       }),
-    [harmonicCount, oddEvenBalance, phaseMode, rolloff],
+    [harmonicCount, oddEvenBalance, phaseDistortion, rolloff],
   )
 
   const previewBuffer = useMemo(() => {
@@ -572,6 +528,14 @@ export default function GenerateView({
                 onChange={onHarmonicCountChange}
                 aria-label="Harmonics"
               />
+              <IconButton
+                type="button"
+                name="Refresh"
+                muted
+                aria-label="Reset harmonics"
+                title="Reset harmonics"
+                onClick={() => onHarmonicCountChange(DEFAULT_HARMONIC_COUNT)}
+              />
             </ControlInputs>
           </ControlGroup>
           <ControlGroup>
@@ -595,6 +559,14 @@ export default function GenerateView({
                 value={rolloff}
                 onChange={onRolloffChange}
                 aria-label="Rolloff"
+              />
+              <IconButton
+                type="button"
+                name="Refresh"
+                muted
+                aria-label="Reset rolloff"
+                title="Reset rolloff"
+                onClick={() => onRolloffChange(DEFAULT_ROLLOFF)}
               />
             </ControlInputs>
           </ControlGroup>
@@ -620,25 +592,51 @@ export default function GenerateView({
                 onChange={onOddEvenBalanceChange}
                 aria-label="Odd/even balance"
               />
+              <IconButton
+                type="button"
+                name="Refresh"
+                muted
+                aria-label="Reset odd/even balance"
+                title="Reset odd/even balance"
+                onClick={() =>
+                  onOddEvenBalanceChange(DEFAULT_ODD_EVEN_BALANCE)
+                }
+              />
             </ControlInputs>
           </ControlGroup>
           <ControlGroup>
-            <Label htmlFor="generate-phase">Phase</Label>
-            <SelectWrapper>
-              <Select
-                id="generate-phase"
-                value={phaseMode}
+            <Label htmlFor="generate-phase-distortion">Phase Distortion</Label>
+            <ControlInputs>
+              <Range
+                type="range"
+                min={-1}
+                max={1}
+                step={0.01}
+                value={phaseDistortion}
                 onChange={(event) =>
-                  onPhaseModeChange(event.target.value as PhaseMode)
+                  onPhaseDistortionChange(Number(event.target.value))
                 }
-              >
-                <option value="aligned">Aligned</option>
-                <option value="cosine">Cosine</option>
-                <option value="alternating">Alternating</option>
-                <option value="quadrature">Quadrature</option>
-                <option value="random">Random</option>
-              </Select>
-            </SelectWrapper>
+              />
+              <StyledNumberBox
+                id="generate-phase-distortion"
+                min={-1}
+                max={1}
+                step={0.01}
+                value={phaseDistortion}
+                onChange={onPhaseDistortionChange}
+                aria-label="Phase distortion"
+              />
+              <IconButton
+                type="button"
+                name="Refresh"
+                muted
+                aria-label="Reset phase distortion"
+                title="Reset phase distortion"
+                onClick={() =>
+                  onPhaseDistortionChange(DEFAULT_PHASE_DISTORTION)
+                }
+              />
+            </ControlInputs>
           </ControlGroup>
         </ControlsPane>
         <PreviewPane>

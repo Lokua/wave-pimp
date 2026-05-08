@@ -23,6 +23,7 @@ import Checklist from '@material-symbols/svg-400/rounded/checklist-fill.svg?reac
 import Repeat from '@material-symbols/svg-400/rounded/repeat-fill.svg?react'
 import Tune from '@material-symbols/svg-400/rounded/tune-fill.svg?react'
 import Join from '@material-symbols/svg-400/rounded/join-fill.svg?react'
+import Refresh from '@material-symbols/svg-400/rounded/refresh-fill.svg?react'
 
 import styled from '@emotion/styled'
 
@@ -52,6 +53,7 @@ const icons = {
   Tune,
   Join,
   Repeat,
+  Refresh,
 }
 
 type IconName = keyof typeof icons
@@ -61,11 +63,13 @@ interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> 
   name: IconName
   on?: boolean
   isToggle?: boolean
+  muted?: boolean
 }
 
 const IconButtonRoot = styled('button', {
-  shouldForwardProp: (prop) => prop !== 'isOn' && prop !== 'isToggle',
-})<{ isOn: boolean; isToggle: boolean }>`
+  shouldForwardProp: (prop) =>
+    prop !== 'isOn' && prop !== 'isToggle' && prop !== 'isMuted',
+})<{ isOn: boolean; isToggle: boolean; isMuted: boolean }>`
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -75,7 +79,12 @@ const IconButtonRoot = styled('button', {
   color: inherit;
   line-height: 0;
   cursor: pointer;
-  opacity: ${({ isOn, isToggle }) => (isToggle && !isOn ? 0.6 : 1)};
+  opacity: ${({ isMuted, isOn, isToggle }) =>
+    isMuted || (isToggle && !isOn) ? 0.6 : 1};
+
+  &:hover {
+    opacity: 1;
+  }
 
   svg {
     width: 20px;
@@ -96,6 +105,7 @@ export default function IconButton({
   disabled,
   on = false,
   isToggle = false,
+  muted = false,
   ...rest
 }: IconButtonProps) {
   const Icon = icons[name]
@@ -105,6 +115,7 @@ export default function IconButton({
       disabled={disabled}
       isOn={on}
       isToggle={isToggle}
+      isMuted={muted}
       aria-pressed={isToggle ? on : undefined}
       {...rest}
     >
