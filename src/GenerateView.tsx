@@ -158,11 +158,12 @@ const Select = styled.select`
 `
 
 const SelectGroup = styled(ControlGroup)`
-  grid-template-columns: minmax(52px, 72px) 100px;
+  grid-template-columns: 100px minmax(52px, 72px);
   width: auto;
 
   ${Label} {
     max-width: 100%;
+    order: 1;
   }
 `
 
