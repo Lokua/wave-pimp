@@ -14,6 +14,10 @@ const DEFAULT_HARMONIC_COUNT = 1
 const DEFAULT_ROLLOFF = 1
 const DEFAULT_ODD_EVEN_BALANCE = 0
 const DEFAULT_PHASE_DISTORTION = 0
+const DEFAULT_FM_AMOUNT = 0
+const DEFAULT_FM_RATIO = 1
+const DEFAULT_DRIVE = 0
+const DEFAULT_FOLD = 0
 
 const MIDI_NOTE_NAMES = [
   'C',
@@ -246,10 +250,18 @@ type GenerateViewProps = {
   rolloff: number
   oddEvenBalance: number
   phaseDistortion: number
+  fmAmount: number
+  fmRatio: number
+  drive: number
+  fold: number
   onHarmonicCountChange: (v: number) => void
   onRolloffChange: (v: number) => void
   onOddEvenBalanceChange: (v: number) => void
   onPhaseDistortionChange: (v: number) => void
+  onFmAmountChange: (v: number) => void
+  onFmRatioChange: (v: number) => void
+  onDriveChange: (v: number) => void
+  onFoldChange: (v: number) => void
   onAddFile: (file: AudioFile) => void
 }
 
@@ -288,21 +300,63 @@ function distortPhase(phase: number, amount: number) {
   return 1 - (1 - phase) ** (1 + -amount * 4)
 }
 
+function modulatePhase(phase: number, amount: number, ratio: number) {
+  if (amount === 0) return phase
+
+  return phase + amount * 0.25 * Math.sin(Math.PI * 2 * phase * ratio)
+}
+
+function foldSample(sample: number, amount: number) {
+  if (amount === 0) return sample
+
+  const drive = 1 + amount * 8
+  let folded = sample * drive
+
+  while (folded > 1 || folded < -1) {
+    if (folded > 1) {
+      folded = 2 - folded
+    } else if (folded < -1) {
+      folded = -2 - folded
+    }
+  }
+
+  return folded
+}
+
+function saturateSample(sample: number, amount: number) {
+  if (amount === 0) return sample
+
+  const drive = 1 + amount * 24
+  return Math.tanh(sample * drive) / Math.tanh(drive)
+}
+
 function renderAdditiveFrame({
   harmonicCount,
   rolloff,
   oddEvenBalance,
   phaseDistortion,
+  fmAmount,
+  fmRatio,
+  drive,
+  fold,
 }: {
   harmonicCount: number
   rolloff: number
   oddEvenBalance: number
   phaseDistortion: number
+  fmAmount: number
+  fmRatio: number
+  drive: number
+  fold: number
 }) {
   const samples = new Float32Array(FRAME_LENGTH)
 
   for (let i = 0; i < FRAME_LENGTH; i++) {
-    const phase = distortPhase(i / FRAME_LENGTH, phaseDistortion)
+    const phase = modulatePhase(
+      distortPhase(i / FRAME_LENGTH, phaseDistortion),
+      fmAmount,
+      fmRatio,
+    )
     let value = 0
 
     for (let harmonic = 1; harmonic <= harmonicCount; harmonic++) {
@@ -318,6 +372,20 @@ function renderAdditiveFrame({
   }
 
   removeDcAndNormalize(samples)
+  if (drive > 0) {
+    for (let i = 0; i < samples.length; i++) {
+      samples[i] = saturateSample(samples[i], drive)
+    }
+    removeDcAndNormalize(samples)
+  }
+
+  if (fold > 0) {
+    for (let i = 0; i < samples.length; i++) {
+      samples[i] = foldSample(samples[i], fold)
+    }
+    removeDcAndNormalize(samples)
+  }
+
   return samples
 }
 
@@ -347,10 +415,18 @@ export default function GenerateView({
   rolloff,
   oddEvenBalance,
   phaseDistortion,
+  fmAmount,
+  fmRatio,
+  drive,
+  fold,
   onHarmonicCountChange,
   onRolloffChange,
   onOddEvenBalanceChange,
   onPhaseDistortionChange,
+  onFmAmountChange,
+  onFmRatioChange,
+  onDriveChange,
+  onFoldChange,
   onAddFile,
 }: GenerateViewProps) {
   const canvasWrapRef = useRef<HTMLDivElement | null>(null)
@@ -366,8 +442,21 @@ export default function GenerateView({
         rolloff,
         oddEvenBalance,
         phaseDistortion,
+        fmAmount,
+        fmRatio,
+        drive,
+        fold,
       }),
-    [harmonicCount, oddEvenBalance, phaseDistortion, rolloff],
+    [
+      drive,
+      fmAmount,
+      fmRatio,
+      fold,
+      harmonicCount,
+      oddEvenBalance,
+      phaseDistortion,
+      rolloff,
+    ],
   )
 
   const previewBuffer = useMemo(() => {
@@ -386,11 +475,17 @@ export default function GenerateView({
   })
 
   useEffect(() => {
-    playbackRef.current.setBuffer(previewBuffer)
-    playbackRef.current.setLoopRegion({
+    const loopRegion = {
       startSeconds: 0,
       endSeconds: previewBuffer.duration,
-    })
+    }
+
+    if (playbackRef.current.isPlaying) {
+      playbackRef.current.replaceBuffer(previewBuffer, { loopRegion })
+    } else {
+      playbackRef.current.setBuffer(previewBuffer)
+      playbackRef.current.setLoopRegion(loopRegion)
+    }
   }, [playbackRef, previewBuffer])
 
   useEffect(() => {
@@ -635,6 +730,130 @@ export default function GenerateView({
                 onClick={() =>
                   onPhaseDistortionChange(DEFAULT_PHASE_DISTORTION)
                 }
+              />
+            </ControlInputs>
+          </ControlGroup>
+          <ControlGroup>
+            <Label htmlFor="generate-fm-amount">FM Amount</Label>
+            <ControlInputs>
+              <Range
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={fmAmount}
+                onChange={(event) =>
+                  onFmAmountChange(Number(event.target.value))
+                }
+              />
+              <StyledNumberBox
+                id="generate-fm-amount"
+                min={0}
+                max={1}
+                step={0.01}
+                value={fmAmount}
+                onChange={onFmAmountChange}
+                aria-label="FM amount"
+              />
+              <IconButton
+                type="button"
+                name="Refresh"
+                muted
+                aria-label="Reset FM amount"
+                title="Reset FM amount"
+                onClick={() => onFmAmountChange(DEFAULT_FM_AMOUNT)}
+              />
+            </ControlInputs>
+          </ControlGroup>
+          <ControlGroup>
+            <Label htmlFor="generate-fm-ratio">FM Ratio</Label>
+            <ControlInputs>
+              <Range
+                type="range"
+                min={0.25}
+                max={16}
+                step={0.25}
+                value={fmRatio}
+                onChange={(event) =>
+                  onFmRatioChange(Number(event.target.value))
+                }
+              />
+              <StyledNumberBox
+                id="generate-fm-ratio"
+                min={0.25}
+                max={16}
+                step={0.25}
+                value={fmRatio}
+                onChange={onFmRatioChange}
+                aria-label="FM ratio"
+              />
+              <IconButton
+                type="button"
+                name="Refresh"
+                muted
+                aria-label="Reset FM ratio"
+                title="Reset FM ratio"
+                onClick={() => onFmRatioChange(DEFAULT_FM_RATIO)}
+              />
+            </ControlInputs>
+          </ControlGroup>
+          <ControlGroup>
+            <Label htmlFor="generate-drive">Drive</Label>
+            <ControlInputs>
+              <Range
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={drive}
+                onChange={(event) => onDriveChange(Number(event.target.value))}
+              />
+              <StyledNumberBox
+                id="generate-drive"
+                min={0}
+                max={1}
+                step={0.01}
+                value={drive}
+                onChange={onDriveChange}
+                aria-label="Drive"
+              />
+              <IconButton
+                type="button"
+                name="Refresh"
+                muted
+                aria-label="Reset drive"
+                title="Reset drive"
+                onClick={() => onDriveChange(DEFAULT_DRIVE)}
+              />
+            </ControlInputs>
+          </ControlGroup>
+          <ControlGroup>
+            <Label htmlFor="generate-fold">Fold</Label>
+            <ControlInputs>
+              <Range
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={fold}
+                onChange={(event) => onFoldChange(Number(event.target.value))}
+              />
+              <StyledNumberBox
+                id="generate-fold"
+                min={0}
+                max={1}
+                step={0.01}
+                value={fold}
+                onChange={onFoldChange}
+                aria-label="Fold"
+              />
+              <IconButton
+                type="button"
+                name="Refresh"
+                muted
+                aria-label="Reset fold"
+                title="Reset fold"
+                onClick={() => onFoldChange(DEFAULT_FOLD)}
               />
             </ControlInputs>
           </ControlGroup>

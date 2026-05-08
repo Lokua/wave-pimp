@@ -15,6 +15,11 @@ type PlayOptions = {
   fromSeconds?: number
 }
 
+type ReplaceBufferOptions = {
+  loopRegion?: LoopRegion | null
+  crossfadeSeconds?: number
+}
+
 export type LoopRegion = {
   startSeconds: number
   endSeconds: number
@@ -25,6 +30,7 @@ export default class AudioPlayback {
   private readonly onStateChange: (state: PlaybackStateSnapshot) => void
   private audioBuffer: AudioBuffer
   private sourceNode: AudioBufferSourceNode | null = null
+  private sourceGainNode: GainNode | null = null
   private startOffsetSeconds = 0
   private startTimeSeconds = 0
   private loopRegion: LoopRegion | null = null
@@ -46,6 +52,70 @@ export default class AudioPlayback {
     this.stop()
     this.audioBuffer = audioBuffer
     this.startOffsetSeconds = 0
+  }
+
+  replaceBuffer(
+    audioBuffer: AudioBuffer,
+    { loopRegion, crossfadeSeconds = 0.01 }: ReplaceBufferOptions = {},
+  ) {
+    if (loopRegion !== undefined) {
+      this.loopRegion = loopRegion
+    }
+
+    if (!this.isPlaying || !this.sourceNode || !this.sourceGainNode) {
+      this.setBuffer(audioBuffer)
+      return
+    }
+
+    const oldNode = this.sourceNode
+    const oldGain = this.sourceGainNode
+    const resumeFromSeconds = this.getCurrentTimeSeconds()
+    const wasPlaying = this.isPlaying
+
+    oldNode.onended = null
+    this.audioBuffer = audioBuffer
+    this.startOffsetSeconds = this.clampTime(resumeFromSeconds)
+    if (this.startOffsetSeconds >= this.audioBuffer.duration) {
+      this.startOffsetSeconds = 0
+    }
+
+    const now = this.audioContext.currentTime
+    const fadeSeconds = Math.max(0, crossfadeSeconds)
+    const node = this.createSourceNode()
+    const gain = this.audioContext.createGain()
+
+    gain.gain.setValueAtTime(fadeSeconds > 0 ? 0 : 1, now)
+    if (fadeSeconds > 0) {
+      gain.gain.linearRampToValueAtTime(1, now + fadeSeconds)
+      oldGain.gain.cancelScheduledValues(now)
+      oldGain.gain.setValueAtTime(oldGain.gain.value, now)
+      oldGain.gain.linearRampToValueAtTime(0, now + fadeSeconds)
+    }
+
+    node.connect(gain)
+    gain.connect(this.audioContext.destination)
+    node.start(0, this.startOffsetSeconds)
+
+    this.sourceNode = node
+    this.sourceGainNode = gain
+    this.startTimeSeconds = now
+    this.isPlaying = wasPlaying
+    this.emitState()
+
+    try {
+      oldNode.stop(now + fadeSeconds)
+    } catch {
+      // ignore
+    }
+
+    window.setTimeout(() => {
+      try {
+        oldNode.disconnect()
+        oldGain.disconnect()
+      } catch {
+        // ignore
+      }
+    }, Math.ceil(fadeSeconds * 1000) + 16)
   }
 
   getDurationSeconds(): number {
@@ -97,32 +167,14 @@ export default class AudioPlayback {
 
     this.stopSourceNodeOnly()
 
-    const node = this.audioContext.createBufferSource()
-    node.buffer = this.audioBuffer
-    node.playbackRate.value = this.playbackRate
-    node.connect(this.audioContext.destination)
-
-    if (this.loopRegion) {
-      const { startSeconds, endSeconds } = this.loopRegion
-      const clampedStart = this.clampTime(startSeconds)
-      const clampedEnd = this.clampTime(endSeconds)
-      if (clampedEnd > clampedStart) {
-        node.loop = true
-        node.loopStart = clampedStart
-        node.loopEnd = clampedEnd
-      }
-    }
-
-    node.onended = () => {
-      if (!this.isPlaying) return
-      this.isPlaying = false
-      this.startOffsetSeconds = 0
-      this.sourceNode = null
-      this.emitState()
-    }
+    const node = this.createSourceNode()
+    const gain = this.audioContext.createGain()
+    node.connect(gain)
+    gain.connect(this.audioContext.destination)
 
     node.start(0, this.startOffsetSeconds)
     this.sourceNode = node
+    this.sourceGainNode = gain
     this.startTimeSeconds = this.audioContext.currentTime
     this.isPlaying = true
     this.emitState()
@@ -191,11 +243,41 @@ export default class AudioPlayback {
       this.sourceNode.onended = null
       this.sourceNode.stop()
       this.sourceNode.disconnect()
+      this.sourceGainNode?.disconnect()
     } catch {
       // ignore
     }
 
     this.sourceNode = null
+    this.sourceGainNode = null
+  }
+
+  private createSourceNode() {
+    const node = this.audioContext.createBufferSource()
+    node.buffer = this.audioBuffer
+    node.playbackRate.value = this.playbackRate
+
+    if (this.loopRegion) {
+      const { startSeconds, endSeconds } = this.loopRegion
+      const clampedStart = this.clampTime(startSeconds)
+      const clampedEnd = this.clampTime(endSeconds)
+      if (clampedEnd > clampedStart) {
+        node.loop = true
+        node.loopStart = clampedStart
+        node.loopEnd = clampedEnd
+      }
+    }
+
+    node.onended = () => {
+      if (!this.isPlaying) return
+      this.isPlaying = false
+      this.startOffsetSeconds = 0
+      this.sourceNode = null
+      this.sourceGainNode = null
+      this.emitState()
+    }
+
+    return node
   }
 
   private clampTime(seconds: number): number {

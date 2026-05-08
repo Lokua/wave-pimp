@@ -158,6 +158,10 @@ export default function App() {
   const [rolloff, setRolloff] = useState(1)
   const [oddEvenBalance, setOddEvenBalance] = useState(0)
   const [phaseDistortion, setPhaseDistortion] = useState(0)
+  const [fmAmount, setFmAmount] = useState(0)
+  const [fmRatio, setFmRatio] = useState(1)
+  const [drive, setDrive] = useState(0)
+  const [fold, setFold] = useState(0)
   const [settings, setSettings] = useState<Settings>({
     sampleRate: 48000,
     bitDepth: 24,
@@ -356,10 +360,18 @@ export default function App() {
           rolloff={rolloff}
           oddEvenBalance={oddEvenBalance}
           phaseDistortion={phaseDistortion}
+          fmAmount={fmAmount}
+          fmRatio={fmRatio}
+          drive={drive}
+          fold={fold}
           onHarmonicCountChange={setHarmonicCount}
           onRolloffChange={setRolloff}
           onOddEvenBalanceChange={setOddEvenBalance}
           onPhaseDistortionChange={setPhaseDistortion}
+          onFmAmountChange={setFmAmount}
+          onFmRatioChange={setFmRatio}
+          onDriveChange={setDrive}
+          onFoldChange={setFold}
           onAddFile={addGeneratedFile}
         />
       )
