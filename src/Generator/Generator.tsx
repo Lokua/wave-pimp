@@ -1,7 +1,11 @@
 import styled from '@emotion/styled'
 import { useEffect, useMemo, useState } from 'react'
 
+import Button from '../components/Button'
+import FieldLabel from '../components/FieldLabel'
 import IconButton from '../components/IconButton'
+import NumberBox from '../components/NumberBox'
+import Range from '../components/Range'
 import { encodeWav } from '../export'
 import type { AudioFile, Settings } from '../types'
 import useAudioPlayback from '../useAudioPlayback'
@@ -17,10 +21,15 @@ import {
   DEFAULT_ODD_EVEN_BALANCE,
   DEFAULT_PHASE_DISTORTION,
   DEFAULT_ROLLOFF,
+  DEFAULT_SWEEP_COUNT,
   FRAME_LENGTH,
+  MAX_SWEEP_COUNT,
 } from './constants'
 import { formatMidiNoteDisplay, getMidiNoteFrequency } from './midi'
-import { renderAdditiveFrame } from './synthesis'
+import {
+  type AdditiveFrameParams,
+  renderAdditiveFrame,
+} from './synthesis'
 
 const Container = styled.div`
   flex: 1;
@@ -60,63 +69,63 @@ const Body = styled.div`
   min-height: 0;
 `
 
-const Range = styled.input`
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  min-width: 0;
-  height: 4px;
-  margin: 0;
-  border: 0;
-  border-radius: 0;
-  background: var(--border-color);
-  outline: none;
+const SweepCountControl = styled.div`
+  display: inline-grid;
+  grid-template-columns: auto 58px;
+  align-items: center;
+  gap: 6px;
+  cursor: default;
 
-  &::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 14px;
-    height: 14px;
-    border: 0;
-    border-radius: 50%;
-    background: var(--slider-thumb-color);
-    cursor: pointer;
-  }
-
-  &:active::-webkit-slider-thumb {
-    background: var(--text-color);
-  }
-
-  &:focus-visible {
-    box-shadow: 0 0 0 2px var(--text-color);
+  &[data-disabled='true'] {
+    cursor: not-allowed;
   }
 `
 
-const AddButton = styled.button`
-  height: 22px;
-  margin: 1px;
-  padding: 0 10px;
-  border: 1px solid var(--text-color);
-  background: var(--button-bg);
-  color: var(--text-color);
-  font-size: 10px;
+const SweepCountLabel = styled(FieldLabel)`
+  opacity: 0.72;
+  cursor: inherit;
 
-  &:focus {
-    outline: none;
-  }
-
-  &:hover {
-    border-color: var(--text-color);
-    background: var(--button-active);
-  }
-
-  &:focus-visible {
-    box-shadow: 0 0 0 2px var(--text-color);
+  &[data-disabled='true'] {
+    opacity: 0.48;
   }
 `
 
-function formatDefaultName(frameNumber: number) {
+const SweepCountBox = styled(NumberBox)`
+  cursor: inherit;
+`
+
+type SweepLane = {
+  enabled: boolean
+  from: number
+  to: number
+}
+
+type SweepLanes = Partial<Record<keyof AdditiveFrameParams, SweepLane>>
+
+function formatDefaultName(frameNumber: number, isSweep: boolean) {
+  if (isSweep) return 'sweep.wav'
   return `frame-${String(frameNumber).padStart(3, '0')}.wav`
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function snapToControl(value: number, control: GeneratorControlValue) {
+  const clamped = clamp(value, control.min, control.max)
+  const snapped =
+    Math.round((clamped - control.min) / control.step) * control.step +
+    control.min
+  const normalized = clamp(
+    Number(snapped.toFixed(10)),
+    control.min,
+    control.max,
+  )
+  return control.isInteger ? Math.round(normalized) : normalized
+}
+
+function clampSweepCount(value: number) {
+  return clamp(Math.round(value), 2, MAX_SWEEP_COUNT)
 }
 
 type GeneratorProps = {
@@ -165,20 +174,20 @@ export default function Generator({
   onAddFile,
 }: GeneratorProps) {
   const [midiNote, setMidiNote] = useState(DEFAULT_MIDI_NOTE)
+  const [sweepCount, setSweepCount] = useState(DEFAULT_SWEEP_COUNT)
+  const [sweepLanes, setSweepLanes] = useState<SweepLanes>({})
   const midiNoteLabel = formatMidiNoteDisplay(midiNote)
-
-  const samples = useMemo(
-    () =>
-      renderAdditiveFrame({
-        harmonicCount,
-        rolloff,
-        oddEvenBalance,
-        phaseDistortion,
-        fmAmount,
-        fmRatio,
-        drive,
-        fold,
-      }),
+  const currentParams = useMemo<AdditiveFrameParams>(
+    () => ({
+      harmonicCount,
+      rolloff,
+      oddEvenBalance,
+      phaseDistortion,
+      fmAmount,
+      fmRatio,
+      drive,
+      fold,
+    }),
     [
       drive,
       fmAmount,
@@ -189,6 +198,14 @@ export default function Generator({
       phaseDistortion,
       rolloff,
     ],
+  )
+  const hasActiveSweep = Object.values(sweepLanes).some(
+    (lane) => lane?.enabled,
+  )
+
+  const samples = useMemo(
+    () => renderAdditiveFrame(currentParams),
+    [currentParams],
   )
 
   const previewBuffer = useMemo(() => {
@@ -209,17 +226,20 @@ export default function Generator({
   const controls: GeneratorControlValue[] = [
     {
       id: 'generate-harmonics',
+      paramKey: 'harmonicCount',
       label: 'Harmonics',
       ariaLabel: 'Harmonics',
       min: 1,
       max: 64,
       step: 1,
+      isInteger: true,
       value: harmonicCount,
       defaultValue: DEFAULT_HARMONIC_COUNT,
       onChange: onHarmonicCountChange,
     },
     {
       id: 'generate-rolloff',
+      paramKey: 'rolloff',
       label: 'Rolloff',
       ariaLabel: 'Rolloff',
       min: 0,
@@ -231,6 +251,7 @@ export default function Generator({
     },
     {
       id: 'generate-odd-even',
+      paramKey: 'oddEvenBalance',
       label: 'Odd/Even',
       ariaLabel: 'Odd/even balance',
       min: -1,
@@ -242,6 +263,7 @@ export default function Generator({
     },
     {
       id: 'generate-phase-distortion',
+      paramKey: 'phaseDistortion',
       label: 'Phase Distortion',
       ariaLabel: 'Phase distortion',
       min: -1,
@@ -253,6 +275,7 @@ export default function Generator({
     },
     {
       id: 'generate-fm-amount',
+      paramKey: 'fmAmount',
       label: 'FM Amount',
       ariaLabel: 'FM amount',
       min: 0,
@@ -264,6 +287,7 @@ export default function Generator({
     },
     {
       id: 'generate-fm-ratio',
+      paramKey: 'fmRatio',
       label: 'FM Ratio',
       ariaLabel: 'FM ratio',
       min: 0.25,
@@ -275,6 +299,7 @@ export default function Generator({
     },
     {
       id: 'generate-drive',
+      paramKey: 'drive',
       label: 'Drive',
       ariaLabel: 'Drive',
       min: 0,
@@ -286,6 +311,7 @@ export default function Generator({
     },
     {
       id: 'generate-fold',
+      paramKey: 'fold',
       label: 'Fold',
       ariaLabel: 'Fold',
       min: 0,
@@ -330,18 +356,78 @@ export default function Generator({
     }
   }
 
+  function toggleSweepLane(control: GeneratorControlValue) {
+    setSweepLanes((prev) => {
+      const existing = prev[control.paramKey]
+      return {
+        ...prev,
+        [control.paramKey]: {
+          enabled: !(existing?.enabled ?? false),
+          from: existing?.from ?? control.min,
+          to: existing?.to ?? control.max,
+        },
+      }
+    })
+  }
+
+  function changeSweepLane(
+    control: GeneratorControlValue,
+    field: 'from' | 'to',
+    value: number,
+  ) {
+    setSweepLanes((prev) => {
+      const existing = prev[control.paramKey]
+      if (!existing) return prev
+
+      return {
+        ...prev,
+        [control.paramKey]: {
+          ...existing,
+          [field]: snapToControl(value, control),
+        },
+      }
+    })
+  }
+
+  function renderSweepBuffer() {
+    const buffer = audioContext.createBuffer(
+      1,
+      FRAME_LENGTH * sweepCount,
+      settings.sampleRate,
+    )
+    const output = buffer.getChannelData(0)
+    const denominator = sweepCount - 1
+
+    for (let frameIndex = 0; frameIndex < sweepCount; frameIndex++) {
+      const t = frameIndex / denominator
+      const params = { ...currentParams }
+
+      for (const control of controls) {
+        const lane = sweepLanes[control.paramKey]
+        if (!lane?.enabled) continue
+        const value = lane.from + (lane.to - lane.from) * t
+        params[control.paramKey] = snapToControl(value, control)
+      }
+
+      output.set(renderAdditiveFrame(params), frameIndex * FRAME_LENGTH)
+    }
+
+    return buffer
+  }
+
   async function addToFiles() {
-    const bytes = encodeWav(previewBuffer, settings.bitDepth)
+    const outputBuffer = hasActiveSweep ? renderSweepBuffer() : previewBuffer
+    const bytes = encodeWav(outputBuffer, settings.bitDepth)
+    const defaultName = formatDefaultName(nextFrameNumber, hasActiveSweep)
 
     const result = (await window.electron.invoke('save-wav', {
       bytes,
-      defaultPath: formatDefaultName(nextFrameNumber),
+      defaultPath: defaultName,
     })) as { canceled: boolean; path?: string }
 
     if (result.canceled || !result.path) return
 
-    const name =
-      result.path.split(/[\\/]/).pop() ?? formatDefaultName(nextFrameNumber)
+    const name = result.path.split(/[\\/]/).pop() ?? defaultName
 
     onAddFile({
       id: crypto.randomUUID(),
@@ -349,12 +435,12 @@ export default function Generator({
       filePath: result.path,
       size: bytes.byteLength,
       type: 'audio/wav',
-      duration: previewBuffer.duration,
-      sampleRate: previewBuffer.sampleRate,
+      duration: outputBuffer.duration,
+      sampleRate: outputBuffer.sampleRate,
       bitDepth: settings.bitDepth,
       channels: 1,
-      sampleCount: FRAME_LENGTH,
-      audioBuffer: previewBuffer,
+      sampleCount: outputBuffer.length,
+      audioBuffer: outputBuffer,
     })
   }
 
@@ -380,12 +466,42 @@ export default function Generator({
           />
           <PitchLabel>{midiNoteLabel}</PitchLabel>
         </PitchControl>
-        <AddButton type="button" onClick={addToFiles}>
-          Add to Files
-        </AddButton>
+        <SweepCountControl
+          data-disabled={!hasActiveSweep}
+          title={
+            hasActiveSweep
+              ? 'Number of generated wavetable frames'
+              : 'Enable a sweep lane to use sweep count'
+          }
+        >
+          <SweepCountLabel
+            htmlFor="generate-sweep-count"
+            data-disabled={!hasActiveSweep}
+          >
+            Sweep
+          </SweepCountLabel>
+          <SweepCountBox
+            id="generate-sweep-count"
+            min={2}
+            max={MAX_SWEEP_COUNT}
+            step={1}
+            value={sweepCount}
+            disabled={!hasActiveSweep}
+            onChange={(value) => setSweepCount(clampSweepCount(value))}
+            aria-label="Sweep count"
+          />
+        </SweepCountControl>
+        <Button type="button" onClick={addToFiles}>
+          {hasActiveSweep ? 'Generate' : 'Add to Files'}
+        </Button>
       </Toolbar>
       <Body>
-        <Controls controls={controls} />
+        <Controls
+          controls={controls}
+          sweepLanes={sweepLanes}
+          onToggleSweepLane={toggleSweepLane}
+          onChangeSweepLane={changeSweepLane}
+        />
         <Preview samples={samples} sampleRate={settings.sampleRate} />
       </Body>
     </Container>

@@ -1,6 +1,7 @@
 import styled from '@emotion/styled'
 import { useEffect } from 'react'
 
+import BaseFieldLabel from './components/FieldLabel'
 import IconButton from './components/IconButton'
 import Select from './components/Select'
 import { BIT_DEPTHS, SAMPLE_RATES, Settings } from './types'
@@ -53,7 +54,7 @@ const FieldGrid = styled.div`
   gap: 12px 16px;
 `
 
-const FieldLabel = styled.label`
+const FieldLabel = styled(BaseFieldLabel)`
   font-size: 12px;
 `
 

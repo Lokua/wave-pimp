@@ -8,3 +8,5 @@ export const DEFAULT_FM_AMOUNT = 0
 export const DEFAULT_FM_RATIO = 1
 export const DEFAULT_DRIVE = 0
 export const DEFAULT_FOLD = 0
+export const DEFAULT_SWEEP_COUNT = 8
+export const MAX_SWEEP_COUNT = 64
