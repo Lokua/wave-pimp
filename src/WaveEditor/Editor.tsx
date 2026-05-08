@@ -8,6 +8,7 @@ import useToast from '../components/useToast'
 import { useSaveWav } from '../export'
 import { isMac } from '../util'
 import WaveEditorControls from './Controls'
+import usePlayback from '../usePlayback'
 import useEdits from './useEdits'
 import useEditorPlayback from './useEditorPlayback'
 import useSelection from './useSelection'
@@ -83,6 +84,7 @@ export default function Editor({
   const audioBuffer = file.audioBuffer
   const { message: toastMessage, showToast } = useToast()
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const { isLooping, toggleLoop } = usePlayback()
   const { saveWav } = useSaveWav({
     file,
     settings,
@@ -112,6 +114,7 @@ export default function Editor({
     audioContext,
     audioBuffer,
     sampleRate,
+    isLooping,
     selectionRef,
   })
 
@@ -182,7 +185,7 @@ export default function Editor({
 
   useEffect(
     function onMount() {
-      console.time('[PERF] Editor mount')
+      // console.time('[PERF] Editor mount')
       const preserveSelection = preserveSelectionOnNextBufferRef.current
       preserveSelectionOnNextBufferRef.current = false
       playbackRef.current.stop()
@@ -195,7 +198,7 @@ export default function Editor({
         })
       }
       recalculateVisiblePeaks()
-      console.timeEnd('[PERF] Editor mount')
+      // console.timeEnd('[PERF] Editor mount')
     },
     [
       audioBuffer,
@@ -389,10 +392,12 @@ export default function Editor({
     <>
       <WaveEditorControls
         isPlaying={isPlaying}
+        isLooping={isLooping}
         elapsedSeconds={elapsedSeconds}
         durationSeconds={durationSeconds}
         onClickPlay={onClickPlay}
         onClickStop={onClickStop}
+        onToggleLoop={toggleLoop}
         onClickZoomIn={onZoomIn}
         onClickZoomOut={onZoomOut}
         onClickZoomFit={onZoomFit}

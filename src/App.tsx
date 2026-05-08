@@ -7,6 +7,7 @@ import GenerateView from './GenerateView'
 import SettingsModal from './SettingsModal'
 import WaveEditor from './WaveEditor'
 import type { AudioFile, Settings } from './types'
+import type { PhaseMode } from './GenerateView'
 import useDropArea from './useDropArea'
 
 const audioCtx = new AudioContext()
@@ -55,7 +56,7 @@ const NavButton = styled.button<{ isActive: boolean }>`
 
   &:hover {
     background: transparent;
-    border-bottom-color: var(--text-color);
+    border-bottom-color: var(--separator-color);
   }
 
   &:disabled {
@@ -154,6 +155,10 @@ export default function App() {
   const [filesSelection, setFilesSelection] = useState<string[]>([])
   const [isFilesProcessing, setIsFilesProcessing] = useState(false)
   const [nextFrameNumber, setNextFrameNumber] = useState(1)
+  const [harmonicCount, setHarmonicCount] = useState(1)
+  const [rolloff, setRolloff] = useState(1)
+  const [oddEvenBalance, setOddEvenBalance] = useState(0)
+  const [phaseMode, setPhaseMode] = useState<PhaseMode>('aligned')
   const [settings, setSettings] = useState<Settings>({
     sampleRate: 48000,
     bitDepth: 24,
@@ -176,19 +181,19 @@ export default function App() {
       return
     }
 
-    console.time('[PERF] Total file drop')
-    console.log(
-      `[PERF] Starting file drop for ${incomingUniqueFiles.length} file(s)`,
-    )
+    // console.time('[PERF] Total file drop')
+    // console.log(
+    //   `[PERF] Starting file drop for ${incomingUniqueFiles.length} file(s)`,
+    // )
 
     setIsLoadingFiles(true)
     try {
       const decodedFiles = await Promise.all(
         incomingUniqueFiles.map(async (file) => {
-          const fileLabel = `[PERF] "${file.name}"`
-          console.log(
-            `${fileLabel} - ${(file.size / 1024 / 1024).toFixed(2)} MB`,
-          )
+          // const fileLabel = `[PERF] "${file.name}"`
+          // console.log(
+          //   `${fileLabel} - ${(file.size / 1024 / 1024).toFixed(2)} MB`,
+          // )
 
           const metadata = await parseBlob(file)
           const filePath = (file as File & { path?: string }).path
@@ -203,9 +208,9 @@ export default function App() {
 
           const buffer = await file.arrayBuffer()
 
-          console.time(`${fileLabel} - Audio decoding`)
+          // console.time(`${fileLabel} - Audio decoding`)
           const audioBuffer = await audioCtx.decodeAudioData(buffer)
-          console.timeEnd(`${fileLabel} - Audio decoding`)
+          // console.timeEnd(`${fileLabel} - Audio decoding`)
 
           return {
             id: crypto.randomUUID(),
@@ -237,7 +242,7 @@ export default function App() {
       })
     } finally {
       setIsLoadingFiles(false)
-      console.timeEnd('[PERF] Total file drop')
+      // console.timeEnd('[PERF] Total file drop')
     }
   })
 
@@ -348,6 +353,14 @@ export default function App() {
           settings={settings}
           audioContext={audioCtx}
           nextFrameNumber={nextFrameNumber}
+          harmonicCount={harmonicCount}
+          rolloff={rolloff}
+          oddEvenBalance={oddEvenBalance}
+          phaseMode={phaseMode}
+          onHarmonicCountChange={setHarmonicCount}
+          onRolloffChange={setRolloff}
+          onOddEvenBalanceChange={setOddEvenBalance}
+          onPhaseModeChange={setPhaseMode}
           onAddFile={addGeneratedFile}
         />
       )
@@ -373,7 +386,9 @@ export default function App() {
   return (
     <Container>
       <Titlebar>
-        <TitlebarFileName>{editorFile?.name ?? ''}</TitlebarFileName>
+        {activeWorkspace === 'edit' && (
+          <TitlebarFileName>{editorFile?.name ?? ''}</TitlebarFileName>
+        )}
         <TitlebarNav aria-label="Tools">
           <NavButton
             type="button"

@@ -15,6 +15,11 @@ type PlayOptions = {
   fromSeconds?: number
 }
 
+export type LoopRegion = {
+  startSeconds: number
+  endSeconds: number
+}
+
 export default class AudioPlayback {
   private readonly audioContext: AudioContext
   private readonly onStateChange: (state: PlaybackStateSnapshot) => void
@@ -22,6 +27,7 @@ export default class AudioPlayback {
   private sourceNode: AudioBufferSourceNode | null = null
   private startOffsetSeconds = 0
   private startTimeSeconds = 0
+  private loopRegion: LoopRegion | null = null
 
   public isPlaying = false
 
@@ -55,6 +61,15 @@ export default class AudioPlayback {
       this.startTimeSeconds +
       this.startOffsetSeconds
 
+    if (this.loopRegion) {
+      const { startSeconds, endSeconds } = this.loopRegion
+      const span = endSeconds - startSeconds
+      if (span > 0 && t >= endSeconds) {
+        return startSeconds + ((t - startSeconds) % span)
+      }
+      return Math.max(0, t)
+    }
+
     const d = this.audioBuffer.duration
     return Math.max(0, Math.min(t, d))
   }
@@ -84,6 +99,17 @@ export default class AudioPlayback {
     const node = this.audioContext.createBufferSource()
     node.buffer = this.audioBuffer
     node.connect(this.audioContext.destination)
+
+    if (this.loopRegion) {
+      const { startSeconds, endSeconds } = this.loopRegion
+      const clampedStart = this.clampTime(startSeconds)
+      const clampedEnd = this.clampTime(endSeconds)
+      if (clampedEnd > clampedStart) {
+        node.loop = true
+        node.loopStart = clampedStart
+        node.loopEnd = clampedEnd
+      }
+    }
 
     node.onended = () => {
       if (!this.isPlaying) return
@@ -134,6 +160,15 @@ export default class AudioPlayback {
   togglePlayPause() {
     if (this.isPlaying) this.pause()
     else void this.play()
+  }
+
+  setLoopRegion(region: LoopRegion | null) {
+    this.loopRegion = region
+
+    if (!this.isPlaying) return
+
+    const resumeFromSeconds = this.getCurrentTimeSeconds()
+    void this.play({ fromSeconds: resumeFromSeconds })
   }
 
   private stopSourceNodeOnly() {

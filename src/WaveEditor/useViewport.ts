@@ -35,7 +35,7 @@ export default function useViewport({
 
       async function buildPeaksAsync() {
         setIsLoadingPeaks(true)
-        console.time('[PERF] buildPeaksCache (Editor useViewport)')
+        // console.time('[PERF] buildPeaksCache (Editor useViewport)')
 
         try {
           const channelData: Float32Array[] = []
@@ -57,10 +57,10 @@ export default function useViewport({
           if (cancelled) return
 
           const { blockSizes } = blockSizesResult as { blockSizes: number[] }
-          console.log(
-            `[PERF] Building ${blockSizes.length} cache levels:`,
-            blockSizes,
-          )
+          // console.log(
+          //   `[PERF] Building ${blockSizes.length} cache levels:`,
+          //   blockSizes,
+          // )
 
           // Build cache one level at a time to avoid IPC size limits
           // Build from coarsest to finest to transfer smaller data first
@@ -73,12 +73,12 @@ export default function useViewport({
             if (cancelled) return
 
             const blockSize = blockSizes[i]
-            console.log(
-              `[DEBUG] About to build level ${i + 1}/${blockSizes.length} (blockSize=${blockSize})`,
-            )
-            console.time(
-              `[PERF] Building cache level ${i + 1}/${blockSizes.length} (blockSize=${blockSize})`,
-            )
+            // console.log(
+            //   `[DEBUG] About to build level ${i + 1}/${blockSizes.length} (blockSize=${blockSize})`,
+            // )
+            // console.time(
+            //   `[PERF] Building cache level ${i + 1}/${blockSizes.length} (blockSize=${blockSize})`,
+            // )
 
             const result = await window.electron.invoke(
               'build-peaks-cache-level',
@@ -104,14 +104,14 @@ export default function useViewport({
             //   setIsLoadingPeaks(false)
             // }
 
-            console.timeEnd(
-              `[PERF] Building cache level ${i + 1}/${blockSizes.length} (blockSize=${blockSize})`,
-            )
-            console.log(`[DEBUG] Completed level ${i + 1}/${blockSizes.length}`)
+            // console.timeEnd(
+            //   `[PERF] Building cache level ${i + 1}/${blockSizes.length} (blockSize=${blockSize})`,
+            // )
+            // console.log(`[DEBUG] Completed level ${i + 1}/${blockSizes.length}`)
           }
 
           if (!cancelled) {
-            console.timeEnd('[PERF] buildPeaksCache (Editor useViewport)')
+            // console.timeEnd('[PERF] buildPeaksCache (Editor useViewport)')
             setPeaksCache(peaksCachePerChannel)
             setIsLoadingPeaks(false)
           }

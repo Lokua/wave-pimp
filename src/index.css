@@ -19,6 +19,7 @@
     --waveform-color-lighter: #bbb;
     --zero-line-color: #d0d0d0;
     --separator-color: #999;
+    --slider-thumb-color: var(--text-color);
     --cursor-color: #f00;
   }
 }
@@ -40,6 +41,7 @@
     --waveform-color-lighter: #999;
     --zero-line-color: #666;
     --separator-color: #666;
+    --slider-thumb-color: var(--separator-color);
     --cursor-color: #ff6666;
   }
 }

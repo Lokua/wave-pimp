@@ -1,6 +1,6 @@
 import styled from '@emotion/styled'
 import NumberBox from '@lokua/number-box'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 
 import type { AudioFile, Settings } from './types'
 import { encodeWav } from './export'
@@ -37,10 +37,10 @@ const PreviewPane = styled.div`
 
 const ControlGroup = styled.fieldset`
   display: inline-grid;
-  grid-template-columns: minmax(52px, 72px) minmax(88px, 140px) 58px;
+  grid-template-columns: minmax(88px, 140px) 58px minmax(52px, 72px);
   align-items: center;
   gap: 6px;
-  width: 280px;
+  width: auto;
   min-width: 0;
   margin: 0;
   padding: 0;
@@ -102,7 +102,7 @@ const Range = styled.input`
     height: 14px;
     border: 0;
     border-radius: 50%;
-    background: var(--separator-color);
+    background: var(--slider-thumb-color);
     cursor: pointer;
   }
 
@@ -135,7 +135,7 @@ const SelectWrapper = styled.span`
 const Select = styled.select`
   appearance: none;
   height: 22px;
-  width: 58px;
+  width: 100px;
   margin: 0;
   padding: 0 24px 0 6px;
   border: 1px solid var(--border-color);
@@ -158,8 +158,8 @@ const Select = styled.select`
 `
 
 const SelectGroup = styled(ControlGroup)`
-  grid-template-columns: minmax(52px, 72px) 58px;
-  width: 136px;
+  grid-template-columns: minmax(52px, 72px) 100px;
+  width: auto;
 
   ${Label} {
     max-width: 100%;
@@ -240,7 +240,7 @@ const InfoValue = styled.span`
   font-size: 12px;
 `
 
-type PhaseMode =
+export type PhaseMode =
   | 'aligned'
   | 'cosine'
   | 'alternating'
@@ -251,6 +251,14 @@ type GenerateViewProps = {
   settings: Settings
   audioContext: AudioContext
   nextFrameNumber: number
+  harmonicCount: number
+  rolloff: number
+  oddEvenBalance: number
+  phaseMode: PhaseMode
+  onHarmonicCountChange: (v: number) => void
+  onRolloffChange: (v: number) => void
+  onOddEvenBalanceChange: (v: number) => void
+  onPhaseModeChange: (v: PhaseMode) => void
   onAddFile: (file: AudioFile) => void
 }
 
@@ -329,12 +337,16 @@ export default function GenerateView({
   settings,
   audioContext,
   nextFrameNumber,
+  harmonicCount,
+  rolloff,
+  oddEvenBalance,
+  phaseMode,
+  onHarmonicCountChange,
+  onRolloffChange,
+  onOddEvenBalanceChange,
+  onPhaseModeChange,
   onAddFile,
 }: GenerateViewProps) {
-  const [harmonicCount, setHarmonicCount] = useState(1)
-  const [rolloff, setRolloff] = useState(1)
-  const [oddEvenBalance, setOddEvenBalance] = useState(0)
-  const [phaseMode, setPhaseMode] = useState<PhaseMode>('aligned')
   const canvasWrapRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const { width, height } = useElementSize(canvasWrapRef)
@@ -378,7 +390,7 @@ export default function GenerateView({
         FRAME_LENGTH - 1,
         Math.floor((x / Math.max(1, width - 1)) * FRAME_LENGTH),
       )
-      const y = height / 2 - samples[index] * (height * 0.42)
+      const y = height / 2 - samples[index] * (height * 0.48)
       if (x === 0) {
         ctx.moveTo(x, y)
       } else {
@@ -388,26 +400,24 @@ export default function GenerateView({
     ctx.stroke()
   }, [height, samples, width])
 
-  function addToFiles() {
-    const defaultName = formatDefaultName(nextFrameNumber)
-    const requestedName = window.prompt('Name generated frame', defaultName)
-    if (requestedName == null) return
-    const trimmedName = requestedName.trim()
-    if (!trimmedName) return
-    const name = trimmedName.toLowerCase().endsWith('.wav')
-      ? trimmedName
-      : `${trimmedName}.wav`
-    const buffer = audioContext.createBuffer(
-      1,
-      FRAME_LENGTH,
-      settings.sampleRate,
-    )
+  async function addToFiles() {
+    const buffer = audioContext.createBuffer(1, FRAME_LENGTH, settings.sampleRate)
     buffer.copyToChannel(samples, 0)
     const bytes = encodeWav(buffer, settings.bitDepth)
+
+    const result = (await window.electron.invoke('save-wav', {
+      bytes,
+      defaultPath: formatDefaultName(nextFrameNumber),
+    })) as { canceled: boolean; path?: string }
+
+    if (result.canceled || !result.path) return
+
+    const name = result.path.split(/[\\/]/).pop() ?? formatDefaultName(nextFrameNumber)
 
     onAddFile({
       id: crypto.randomUUID(),
       name,
+      filePath: result.path,
       size: bytes.byteLength,
       type: 'audio/wav',
       duration: buffer.duration,
@@ -423,14 +433,13 @@ export default function GenerateView({
     <Container>
       <Toolbar>
         <ControlGroup>
-          <Label htmlFor="generate-harmonics">Harmonics</Label>
           <Range
             type="range"
             min={1}
             max={64}
             step={1}
             value={harmonicCount}
-            onChange={(event) => setHarmonicCount(Number(event.target.value))}
+            onChange={(event) => onHarmonicCountChange(Number(event.target.value))}
           />
           <StyledNumberBox
             id="generate-harmonics"
@@ -438,19 +447,19 @@ export default function GenerateView({
             max={64}
             step={1}
             value={harmonicCount}
-            onChange={setHarmonicCount}
+            onChange={onHarmonicCountChange}
             aria-label="Harmonics"
           />
+          <Label htmlFor="generate-harmonics">Harmonics</Label>
         </ControlGroup>
         <ControlGroup>
-          <Label htmlFor="generate-rolloff">Rolloff</Label>
           <Range
             type="range"
             min={0}
             max={3}
             step={0.05}
             value={rolloff}
-            onChange={(event) => setRolloff(Number(event.target.value))}
+            onChange={(event) => onRolloffChange(Number(event.target.value))}
           />
           <StyledNumberBox
             id="generate-rolloff"
@@ -458,19 +467,19 @@ export default function GenerateView({
             max={3}
             step={0.05}
             value={rolloff}
-            onChange={setRolloff}
+            onChange={onRolloffChange}
             aria-label="Rolloff"
           />
+          <Label htmlFor="generate-rolloff">Rolloff</Label>
         </ControlGroup>
         <ControlGroup>
-          <Label htmlFor="generate-odd-even">Odd/Even</Label>
           <Range
             type="range"
             min={-1}
             max={1}
             step={0.05}
             value={oddEvenBalance}
-            onChange={(event) => setOddEvenBalance(Number(event.target.value))}
+            onChange={(event) => onOddEvenBalanceChange(Number(event.target.value))}
           />
           <StyledNumberBox
             id="generate-odd-even"
@@ -478,9 +487,10 @@ export default function GenerateView({
             max={1}
             step={0.05}
             value={oddEvenBalance}
-            onChange={setOddEvenBalance}
+            onChange={onOddEvenBalanceChange}
             aria-label="Odd/even balance"
           />
+          <Label htmlFor="generate-odd-even">Odd/Even</Label>
         </ControlGroup>
         <SelectGroup>
           <Label htmlFor="generate-phase">Phase</Label>
@@ -489,13 +499,13 @@ export default function GenerateView({
               id="generate-phase"
               value={phaseMode}
               onChange={(event) =>
-                setPhaseMode(event.target.value as PhaseMode)
+                onPhaseModeChange(event.target.value as PhaseMode)
               }
             >
               <option value="aligned">Aligned</option>
-              <option value="cosine">Cos</option>
+              <option value="cosine">Cosine</option>
               <option value="alternating">Alternating</option>
-              <option value="quadrature">Quad</option>
+              <option value="quadrature">Quadrature</option>
               <option value="random">Random</option>
             </Select>
           </SelectWrapper>

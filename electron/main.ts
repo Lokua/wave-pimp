@@ -318,10 +318,10 @@ ipcMain.handle(
     },
   ) => {
     try {
-      console.time('[MAIN PROCESS] buildPeaksCache')
+      // console.time('[MAIN PROCESS] buildPeaksCache')
       const { channelData, maxCacheWidth, options } = data
       const peaksCache = buildPeaksCache(channelData, maxCacheWidth, options)
-      console.timeEnd('[MAIN PROCESS] buildPeaksCache')
+      // console.timeEnd('[MAIN PROCESS] buildPeaksCache')
       return { peaksCache }
     } catch (error) {
       console.error('Failed to build peaks cache:', error)

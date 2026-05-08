@@ -35,10 +35,12 @@ const TimeDisplay = styled.span`
 
 type WaveEditorControlsProps = {
   isPlaying: boolean
+  isLooping: boolean
   elapsedSeconds: number
   durationSeconds: number
   onClickPlay: () => void
   onClickStop: () => void
+  onToggleLoop: () => void
   onClickZoomIn: () => void
   onClickZoomOut: () => void
   onClickZoomFit: () => void
@@ -60,10 +62,12 @@ type WaveEditorControlsProps = {
 
 export default function WaveEditorControls({
   isPlaying,
+  isLooping,
   elapsedSeconds,
   durationSeconds,
   onClickPlay,
   onClickStop,
+  onToggleLoop,
   onClickZoomIn,
   onClickZoomOut,
   onClickZoomFit,
@@ -123,6 +127,15 @@ export default function WaveEditorControls({
           aria-label={isPlaying ? 'Pause' : 'Stop'}
           title={`${isPlaying ? 'Pause' : 'Stop'} (Space)`}
           onClick={onClickStop}
+        />
+        <IconButton
+          type="button"
+          name="Repeat"
+          aria-label={isLooping ? 'Disable loop' : 'Enable loop'}
+          title={isLooping ? 'Disable loop' : 'Enable loop'}
+          onClick={onToggleLoop}
+          on={isLooping}
+          isToggle
         />
         <TimeDisplay>
           {formatDuration(elapsedSeconds)}/{formatDuration(durationSeconds)}

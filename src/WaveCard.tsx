@@ -12,6 +12,7 @@ import IconButton from './components/IconButton'
 import Toast from './components/Toast'
 import useToast from './components/useToast'
 import { useSaveWav } from './export'
+import usePlayback from './usePlayback'
 
 const Card = styled.article<{ isSelected: boolean; isBulkMode: boolean }>`
   position: relative;
@@ -179,6 +180,7 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
     audioContext,
     audioBuffer: file.audioBuffer,
   })
+  const { isLooping } = usePlayback()
   const samplesPerPixelRef = useRef(samplesPerPixel)
   const renameInputRef = useRef<HTMLInputElement | null>(null)
   const renameSignalRef = useRef(renameSignal)
@@ -201,7 +203,7 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
     let cancelled = false
     async function buildPeaksAsync() {
       const label = file.name
-      console.time(`[PERF] "${label}" buildPeaksCache (WaveCard)`)
+      // console.time(`[PERF] "${label}" buildPeaksCache (WaveCard)`)
       try {
         const channelData = []
         for (let i = 0; i < file.audioBuffer.numberOfChannels; i++) {
@@ -216,7 +218,7 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
         })
         if (!cancelled) {
           setPeaksCache(result.peaksCache)
-          console.timeEnd(`[PERF] "${label}" buildPeaksCache (WaveCard)`)
+          // console.timeEnd(`[PERF] "${label}" buildPeaksCache (WaveCard)`)
         }
       } catch (error) {
         console.error('Failed to build peaks cache:', error)
@@ -232,6 +234,17 @@ const WaveCard = forwardRef<HTMLElement, WaveCardProps>(function WaveCard(
     playbackRef.current.stop()
     playbackRef.current.setBuffer(file.audioBuffer)
   }, [file.audioBuffer, playbackRef])
+
+  useEffect(() => {
+    if (isLooping) {
+      playbackRef.current.setLoopRegion({
+        startSeconds: 0,
+        endSeconds: file.audioBuffer.duration,
+      })
+    } else {
+      playbackRef.current.setLoopRegion(null)
+    }
+  }, [file.audioBuffer, isLooping, playbackRef])
 
   useEffect(() => {
     if (!isRenaming) {
