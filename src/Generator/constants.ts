@@ -1,6 +1,8 @@
 export const FRAME_LENGTH = 2048
 export const DEFAULT_GENERATOR_SOURCE = 'sine'
 export const DEFAULT_MIDI_NOTE = 36
+export const DEFAULT_GENERATOR_SAMPLE_RATE = 48000
+export const DEFAULT_GENERATOR_BIT_DEPTH = 32
 export const DEFAULT_PHASE = 0
 export const DEFAULT_PULSE_WIDTH = 0
 export const DEFAULT_HARMONIC_ORDER = 2

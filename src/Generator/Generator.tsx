@@ -1,5 +1,5 @@
 import styled from '@emotion/styled'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 
 import Button from '../components/Button'
 import FieldLabel from '../components/FieldLabel'
@@ -17,15 +17,16 @@ import {
 import useAudioPlayback from '../useAudioPlayback'
 import Controls, {
   type GeneratorControlValue,
+  type SweepLanes,
 } from './Controls'
 import {
   DEFAULT_DRIVE,
+  DEFAULT_GENERATOR_BIT_DEPTH,
+  DEFAULT_GENERATOR_SAMPLE_RATE,
   DEFAULT_HARMONIC_AMOUNT,
   DEFAULT_HARMONIC_ORDER,
-  DEFAULT_MIDI_NOTE,
   DEFAULT_PHASE,
   DEFAULT_PULSE_WIDTH,
-  DEFAULT_SWEEP_COUNT,
   FRAME_LENGTH,
   MAX_SWEEP_COUNT,
 } from './constants'
@@ -35,7 +36,6 @@ import {
   GENERATOR_SOURCE_DEFINITIONS,
   GENERATOR_SOURCE_ORDER,
   type GeneratorFrameParams,
-  type GeneratorParamKey,
   type GeneratorSource,
   renderGeneratorFrame,
 } from './synthesis'
@@ -113,14 +113,6 @@ const ExportControl = styled.div`
   margin-right: var(--top-bar-control-margin);
 `
 
-type SweepLane = {
-  enabled: boolean
-  from: number
-  to: number
-}
-
-type SweepLanes = Partial<Record<GeneratorParamKey, SweepLane>>
-
 function formatDefaultName(source: GeneratorSource, isSweep: boolean) {
   if (isSweep) return `${source}-sweep.wav`
   return `${source}.wav`
@@ -152,12 +144,24 @@ type GeneratorBitDepth = Settings['bitDepth']
 
 type GeneratorProps = {
   audioContext: AudioContext
+  midiNote: number
+  sweepCount: number
+  sampleRate: GeneratorSampleRate
+  bitDepth: GeneratorBitDepth
+  sweepLanes: SweepLanes
   source: GeneratorSource
   phase: number
   pulseWidth: number
   harmonicOrder: number
   harmonicAmount: number
   drive: number
+  onMidiNoteChange: (v: number) => void
+  onSweepCountChange: (v: number) => void
+  onSampleRateChange: (v: GeneratorSampleRate) => void
+  onBitDepthChange: (v: GeneratorBitDepth) => void
+  onSweepLanesChange: (
+    v: SweepLanes | ((prev: SweepLanes) => SweepLanes),
+  ) => void
   onSourceChange: (v: GeneratorSource) => void
   onPhaseChange: (v: number) => void
   onPulseWidthChange: (v: number) => void
@@ -169,12 +173,22 @@ type GeneratorProps = {
 
 export default function Generator({
   audioContext,
+  midiNote,
+  sweepCount,
+  sampleRate = DEFAULT_GENERATOR_SAMPLE_RATE,
+  bitDepth = DEFAULT_GENERATOR_BIT_DEPTH,
+  sweepLanes,
   source,
   phase,
   pulseWidth,
   harmonicOrder,
   harmonicAmount,
   drive,
+  onMidiNoteChange,
+  onSweepCountChange,
+  onSampleRateChange,
+  onBitDepthChange,
+  onSweepLanesChange,
   onSourceChange,
   onPhaseChange,
   onPulseWidthChange,
@@ -183,11 +197,6 @@ export default function Generator({
   onDriveChange,
   onAddFile,
 }: GeneratorProps) {
-  const [midiNote, setMidiNote] = useState(DEFAULT_MIDI_NOTE)
-  const [sweepCount, setSweepCount] = useState(DEFAULT_SWEEP_COUNT)
-  const [sampleRate, setSampleRate] = useState<GeneratorSampleRate>(48000)
-  const [bitDepth, setBitDepth] = useState<GeneratorBitDepth>(32)
-  const [sweepLanes, setSweepLanes] = useState<SweepLanes>({})
   const midiNoteLabel = formatMidiNoteDisplay(midiNote)
   const currentParams = useMemo<GeneratorFrameParams>(
     () => ({
@@ -336,7 +345,7 @@ export default function Generator({
   }
 
   function toggleSweepLane(control: GeneratorControlValue) {
-    setSweepLanes((prev) => {
+    onSweepLanesChange((prev) => {
       const existing = prev[control.paramKey]
       return {
         ...prev,
@@ -354,7 +363,7 @@ export default function Generator({
     field: 'from' | 'to',
     value: number,
   ) {
-    setSweepLanes((prev) => {
+    onSweepLanesChange((prev) => {
       const existing = prev[control.paramKey]
       if (!existing) return prev
 
@@ -419,6 +428,10 @@ export default function Generator({
       bitDepth,
       channels: 1,
       sampleCount: outputBuffer.length,
+      sourceBuffer: bytes.buffer.slice(
+        bytes.byteOffset,
+        bytes.byteOffset + bytes.byteLength,
+      ),
       audioBuffer: outputBuffer,
     })
   }
@@ -441,7 +454,7 @@ export default function Generator({
             step={1}
             value={midiNote}
             aria-label="MIDI note"
-            onChange={(event) => setMidiNote(Number(event.target.value))}
+            onChange={(event) => onMidiNoteChange(Number(event.target.value))}
           />
           <PitchLabel>{midiNoteLabel}</PitchLabel>
         </PitchControl>
@@ -466,7 +479,7 @@ export default function Generator({
             step={1}
             value={sweepCount}
             disabled={!hasActiveSweep}
-            onChange={(value) => setSweepCount(clampSweepCount(value))}
+            onChange={(value) => onSweepCountChange(clampSweepCount(value))}
             aria-label="Sweep count"
           />
         </SweepCountControl>
@@ -480,7 +493,7 @@ export default function Generator({
               label: `${value.toLocaleString()} Hz`,
             }))}
             onChange={(value) =>
-              setSampleRate(Number(value) as GeneratorSampleRate)
+              onSampleRateChange(Number(value) as GeneratorSampleRate)
             }
             aria-label="Generator sample rate"
           />
@@ -495,7 +508,7 @@ export default function Generator({
               label: `${value}-bit`,
             }))}
             onChange={(value) =>
-              setBitDepth(Number(value) as GeneratorBitDepth)
+              onBitDepthChange(Number(value) as GeneratorBitDepth)
             }
             aria-label="Generator bit depth"
           />

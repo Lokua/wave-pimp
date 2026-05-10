@@ -67,11 +67,13 @@ export type SweepLaneValue = {
   to: number
 }
 
+export type SweepLanes = Partial<Record<GeneratorParamKey, SweepLaneValue>>
+
 type ControlsProps = {
   source: GeneratorSource
   sourceOptions: Array<{ label: string; value: string }>
   controls: GeneratorControlValue[]
-  sweepLanes: Partial<Record<GeneratorParamKey, SweepLaneValue>>
+  sweepLanes: SweepLanes
   onSourceChange: (source: string) => void
   onToggleSweepLane: (control: GeneratorControlValue) => void
   onChangeSweepLane: (

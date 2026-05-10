@@ -4,21 +4,31 @@ import { parseBlob } from 'music-metadata'
 
 import BulkView from './BulkView'
 import Generator from './Generator'
+import type { SweepLanes } from './Generator/Controls'
 import {
   DEFAULT_DRIVE,
+  DEFAULT_GENERATOR_BIT_DEPTH,
+  DEFAULT_GENERATOR_SAMPLE_RATE,
   DEFAULT_GENERATOR_SOURCE,
   DEFAULT_HARMONIC_AMOUNT,
   DEFAULT_HARMONIC_ORDER,
+  DEFAULT_MIDI_NOTE,
   DEFAULT_PHASE,
   DEFAULT_PULSE_WIDTH,
+  DEFAULT_SWEEP_COUNT,
 } from './Generator/constants'
 import type { GeneratorSource } from './Generator/synthesis'
 import SettingsModal from './SettingsModal'
 import WaveEditor from './WaveEditor'
-import type { AudioFile, Settings } from './types'
+import { BIT_DEPTHS, SAMPLE_RATES, type AudioFile, type Settings } from './types'
 import useDropArea from './useDropArea'
 
 const audioCtx = new AudioContext()
+const SETTINGS_STORAGE_KEY = 'wave-pimp:settings'
+const DEFAULT_SETTINGS: Settings = {
+  sampleRate: 48000,
+  bitDepth: 24,
+}
 
 type Workspace = 'files' | 'generate' | 'edit'
 
@@ -152,6 +162,39 @@ function getAudioFileKey(file: AudioFile) {
   return `meta:${file.name}|${file.size}|${file.type}`
 }
 
+function isSampleRate(value: unknown): value is Settings['sampleRate'] {
+  return (
+    typeof value === 'number' &&
+    SAMPLE_RATES.includes(value as Settings['sampleRate'])
+  )
+}
+
+function isBitDepth(value: unknown): value is Settings['bitDepth'] {
+  return (
+    typeof value === 'number' &&
+    BIT_DEPTHS.includes(value as Settings['bitDepth'])
+  )
+}
+
+function loadStoredSettings(): Settings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY)
+    if (!raw) return DEFAULT_SETTINGS
+
+    const parsed = JSON.parse(raw) as Partial<Settings>
+    return {
+      sampleRate: isSampleRate(parsed.sampleRate)
+        ? parsed.sampleRate
+        : DEFAULT_SETTINGS.sampleRate,
+      bitDepth: isBitDepth(parsed.bitDepth)
+        ? parsed.bitDepth
+        : DEFAULT_SETTINGS.bitDepth,
+    }
+  } catch {
+    return DEFAULT_SETTINGS
+  }
+}
+
 export default function App() {
   const [files, setFiles] = useState<AudioFile[]>([])
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
@@ -172,10 +215,25 @@ export default function App() {
     DEFAULT_HARMONIC_AMOUNT,
   )
   const [drive, setDrive] = useState(DEFAULT_DRIVE)
-  const [settings, setSettings] = useState<Settings>({
-    sampleRate: 48000,
-    bitDepth: 24,
-  })
+  const [generatorMidiNote, setGeneratorMidiNote] =
+    useState(DEFAULT_MIDI_NOTE)
+  const [generatorSweepCount, setGeneratorSweepCount] =
+    useState(DEFAULT_SWEEP_COUNT)
+  const [generatorSampleRate, setGeneratorSampleRate] = useState<
+    Settings['sampleRate']
+  >(DEFAULT_GENERATOR_SAMPLE_RATE)
+  const [generatorBitDepth, setGeneratorBitDepth] = useState<
+    Settings['bitDepth']
+  >(DEFAULT_GENERATOR_BIT_DEPTH)
+  const [generatorSweepLanes, setGeneratorSweepLanes] = useState<SweepLanes>(
+    {},
+  )
+  const [settings, setSettings] = useState<Settings>(loadStoredSettings)
+
+  useEffect(() => {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings))
+  }, [settings])
+
   const { isDragActive, eventHandlers } = useDropArea(async (droppedFiles) => {
     if (droppedFiles.length === 0) {
       return
@@ -220,6 +278,7 @@ export default function App() {
           }
 
           const buffer = await file.arrayBuffer()
+          const sourceBuffer = buffer.slice(0)
 
           // console.time(`${fileLabel} - Audio decoding`)
           const audioBuffer = await audioCtx.decodeAudioData(buffer)
@@ -237,7 +296,7 @@ export default function App() {
             channels: metadata.format.numberOfChannels,
             sampleCount:
               metadata.format.numberOfSamples ?? audioBuffer.length,
-            buffer,
+            sourceBuffer,
             audioBuffer,
           }
         }),
@@ -363,12 +422,22 @@ export default function App() {
       return (
         <Generator
           audioContext={audioCtx}
+          midiNote={generatorMidiNote}
+          sweepCount={generatorSweepCount}
+          sampleRate={generatorSampleRate}
+          bitDepth={generatorBitDepth}
+          sweepLanes={generatorSweepLanes}
           source={generatorSource}
           phase={phase}
           pulseWidth={pulseWidth}
           harmonicOrder={harmonicOrder}
           harmonicAmount={harmonicAmount}
           drive={drive}
+          onMidiNoteChange={setGeneratorMidiNote}
+          onSweepCountChange={setGeneratorSweepCount}
+          onSampleRateChange={setGeneratorSampleRate}
+          onBitDepthChange={setGeneratorBitDepth}
+          onSweepLanesChange={setGeneratorSweepLanes}
           onSourceChange={setGeneratorSource}
           onPhaseChange={setPhase}
           onPulseWidthChange={setPulseWidth}

@@ -9,6 +9,7 @@ export interface AudioFile {
   bitDepth: number
   channels: number
   sampleCount?: number
+  sourceBuffer?: ArrayBuffer
   audioBuffer: AudioBuffer
 }
 

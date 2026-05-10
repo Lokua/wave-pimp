@@ -165,8 +165,144 @@ export default function BulkView({
     return 'Concat failed. Selection is unchanged; try again.'
   }
 
+  function readPcmSample(
+    view: DataView,
+    offset: number,
+    audioFormat: number,
+    bitDepth: number,
+  ) {
+    if (audioFormat === 3 && bitDepth === 32) {
+      return view.getFloat32(offset, true)
+    }
+
+    if (audioFormat !== 1) {
+      throw new Error(`Unsupported WAV format code ${audioFormat}`)
+    }
+
+    if (bitDepth === 8) {
+      return (view.getUint8(offset) - 128) / 128
+    }
+
+    if (bitDepth === 16) {
+      return view.getInt16(offset, true) / 32768
+    }
+
+    if (bitDepth === 24) {
+      let value =
+        view.getUint8(offset) |
+        (view.getUint8(offset + 1) << 8) |
+        (view.getUint8(offset + 2) << 16)
+      if (value & 0x800000) value |= 0xff000000
+      return value / 8388608
+    }
+
+    if (bitDepth === 32) {
+      return view.getInt32(offset, true) / 2147483648
+    }
+
+    throw new Error(`Unsupported WAV bit depth ${bitDepth}`)
+  }
+
+  function renderMonoFromWavBytes(file: AudioFile) {
+    if (!file.sourceBuffer) return null
+    if (file.sourceBuffer.byteLength === 0) return null
+
+    const view = new DataView(file.sourceBuffer)
+    if (
+      view.getUint32(0, false) !== 0x52494646 ||
+      view.getUint32(8, false) !== 0x57415645
+    ) {
+      return null
+    }
+
+    let offset = 12
+    let fmtOffset: number | null = null
+    let dataOffset: number | null = null
+    let dataSize = 0
+
+    while (offset + 8 <= view.byteLength) {
+      const chunkId = view.getUint32(offset, false)
+      const chunkSize = view.getUint32(offset + 4, true)
+      if (chunkId === 0x666d7420) fmtOffset = offset + 8
+      if (chunkId === 0x64617461) {
+        dataOffset = offset + 8
+        dataSize = chunkSize
+      }
+      offset += 8 + chunkSize + (chunkSize % 2)
+    }
+
+    if (fmtOffset == null || dataOffset == null) return null
+
+    const audioFormat = view.getUint16(fmtOffset, true)
+    const channelCount = view.getUint16(fmtOffset + 2, true)
+    const sampleRate = view.getUint32(fmtOffset + 4, true)
+    const blockAlign = view.getUint16(fmtOffset + 12, true)
+    const bitDepth = view.getUint16(fmtOffset + 14, true)
+    if (sampleRate !== settings.sampleRate) return null
+
+    const sampleCount = dataSize / blockAlign
+    if (!Number.isInteger(sampleCount)) {
+      throw new Error(`${file.name} has malformed WAV data`)
+    }
+
+    const outputBuffer = audioContext.createBuffer(
+      1,
+      sampleCount,
+      sampleRate,
+    )
+    const output = outputBuffer.getChannelData(0)
+    const bytesPerSample = bitDepth / 8
+
+    for (let i = 0; i < sampleCount; i++) {
+      const frameOffset = dataOffset + i * blockAlign
+      let sum = 0
+      for (let channel = 0; channel < channelCount; channel++) {
+        sum += readPcmSample(
+          view,
+          frameOffset + channel * bytesPerSample,
+          audioFormat,
+          bitDepth,
+        )
+      }
+      output[i] = sum / channelCount
+    }
+
+    return outputBuffer
+  }
+
   async function renderMonoAtTargetRate(file: AudioFile) {
+    const sourceBytesBuffer = renderMonoFromWavBytes(file)
+    if (sourceBytesBuffer) return sourceBytesBuffer
+
     const sourceBuffer = file.audioBuffer
+    if (sourceBuffer.sampleRate === settings.sampleRate) {
+      const targetLength = file.sampleCount ?? sourceBuffer.length
+      const outputBuffer = audioContext.createBuffer(
+        1,
+        targetLength,
+        settings.sampleRate,
+      )
+      const output = outputBuffer.getChannelData(0)
+      const copyLength = Math.min(sourceBuffer.length, targetLength)
+
+      for (
+        let channel = 0;
+        channel < sourceBuffer.numberOfChannels;
+        channel++
+      ) {
+        const input = sourceBuffer.getChannelData(channel)
+        for (let i = 0; i < copyLength; i++) {
+          output[i] += input[i] / sourceBuffer.numberOfChannels
+        }
+        const lastSample = input[Math.max(0, copyLength - 1)] ?? 0
+        for (let i = copyLength; i < targetLength; i++) {
+          output[i] += lastSample / sourceBuffer.numberOfChannels
+        }
+      }
+
+      return outputBuffer
+    }
+
     const targetLength = Math.max(
       1,
       Math.round(sourceBuffer.duration * settings.sampleRate),
@@ -255,7 +391,7 @@ export default function BulkView({
           title={isConcatDisabled ? disabledTitle : undefined}
           onClick={() => void concatIntoWavetable()}
         >
-          {isProcessing ? 'Concatenating...' : 'Concat into Wavetable'}
+          {isProcessing ? 'Concatenating...' : 'Concat'}
         </ConcatButton>
       </Toolbar>
       {hasLengthMismatch || errorMessage ? (
