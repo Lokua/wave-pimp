@@ -1,5 +1,6 @@
 :root {
   overscroll-behavior: none;
+  --top-bar-control-margin: 8px;
 }
 
 @media (prefers-color-scheme: light) {

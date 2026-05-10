@@ -6,27 +6,31 @@ import FieldLabel from '../components/FieldLabel'
 import IconButton from '../components/IconButton'
 import NumberBox from '../components/NumberBox'
 import Range from '../components/Range'
+import Select from '../components/Select'
 import { encodeWav } from '../export'
-import type { AudioFile, Settings } from '../types'
+import {
+  BIT_DEPTHS,
+  SAMPLE_RATES,
+  type AudioFile,
+  type Settings,
+} from '../types'
 import useAudioPlayback from '../useAudioPlayback'
-import Controls, { type GeneratorControlValue } from './Controls'
-import Preview from './Preview'
+import Controls, {
+  type GeneratorControlValue,
+} from './Controls'
 import {
   DEFAULT_DRIVE,
-  DEFAULT_FM_AMOUNT,
-  DEFAULT_FM_RATIO,
-  DEFAULT_FOLD,
-  DEFAULT_PARTIAL_COUNT,
+  DEFAULT_HARMONIC_AMOUNT,
+  DEFAULT_HARMONIC_ORDER,
   DEFAULT_MIDI_NOTE,
-  DEFAULT_ODD_EVEN_BALANCE,
-  DEFAULT_PHASE_DISTORTION,
-  DEFAULT_ROLLOFF,
+  DEFAULT_PHASE,
+  DEFAULT_PULSE_WIDTH,
   DEFAULT_SWEEP_COUNT,
   FRAME_LENGTH,
-  MAX_PARTIAL_COUNT,
   MAX_SWEEP_COUNT,
 } from './constants'
 import { formatMidiNoteDisplay, getMidiNoteFrequency } from './midi'
+import Preview from './Preview'
 import {
   GENERATOR_SOURCE_DEFINITIONS,
   GENERATOR_SOURCE_ORDER,
@@ -59,6 +63,7 @@ const PitchControl = styled.div`
   grid-template-columns: 150px 136px;
   align-items: center;
   gap: 8px;
+  margin-right: var(--top-bar-control-margin);
 `
 
 const PitchLabel = styled.span`
@@ -79,6 +84,7 @@ const SweepCountControl = styled.div`
   grid-template-columns: auto 58px;
   align-items: center;
   gap: 6px;
+  margin-right: var(--top-bar-control-margin);
   cursor: default;
 
   &[data-disabled='true'] {
@@ -99,6 +105,14 @@ const SweepCountBox = styled(NumberBox)`
   cursor: inherit;
 `
 
+const ExportControl = styled.div`
+  display: inline-grid;
+  grid-template-columns: auto 92px;
+  align-items: center;
+  gap: 6px;
+  margin-right: var(--top-bar-control-margin);
+`
+
 type SweepLane = {
   enabled: boolean
   from: number
@@ -107,9 +121,9 @@ type SweepLane = {
 
 type SweepLanes = Partial<Record<GeneratorParamKey, SweepLane>>
 
-function formatDefaultName(frameNumber: number, isSweep: boolean) {
-  if (isSweep) return 'sweep.wav'
-  return `frame-${String(frameNumber).padStart(3, '0')}.wav`
+function formatDefaultName(source: GeneratorSource, isSweep: boolean) {
+  if (isSweep) return `${source}-sweep.wav`
+  return `${source}.wav`
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -133,156 +147,112 @@ function clampSweepCount(value: number) {
   return clamp(Math.round(value), 2, MAX_SWEEP_COUNT)
 }
 
+type GeneratorSampleRate = Settings['sampleRate']
+type GeneratorBitDepth = Settings['bitDepth']
+
 type GeneratorProps = {
-  settings: Settings
   audioContext: AudioContext
-  nextFrameNumber: number
   source: GeneratorSource
-  partialCount: number
-  rolloff: number
-  oddEvenBalance: number
-  phaseDistortion: number
-  fmAmount: number
-  fmRatio: number
+  phase: number
+  pulseWidth: number
+  harmonicOrder: number
+  harmonicAmount: number
   drive: number
-  fold: number
   onSourceChange: (v: GeneratorSource) => void
-  onPartialCountChange: (v: number) => void
-  onRolloffChange: (v: number) => void
-  onOddEvenBalanceChange: (v: number) => void
-  onPhaseDistortionChange: (v: number) => void
-  onFmAmountChange: (v: number) => void
-  onFmRatioChange: (v: number) => void
+  onPhaseChange: (v: number) => void
+  onPulseWidthChange: (v: number) => void
+  onHarmonicOrderChange: (v: number) => void
+  onHarmonicAmountChange: (v: number) => void
   onDriveChange: (v: number) => void
-  onFoldChange: (v: number) => void
   onAddFile: (file: AudioFile) => void
 }
 
 export default function Generator({
-  settings,
   audioContext,
-  nextFrameNumber,
   source,
-  partialCount,
-  rolloff,
-  oddEvenBalance,
-  phaseDistortion,
-  fmAmount,
-  fmRatio,
+  phase,
+  pulseWidth,
+  harmonicOrder,
+  harmonicAmount,
   drive,
-  fold,
   onSourceChange,
-  onPartialCountChange,
-  onRolloffChange,
-  onOddEvenBalanceChange,
-  onPhaseDistortionChange,
-  onFmAmountChange,
-  onFmRatioChange,
+  onPhaseChange,
+  onPulseWidthChange,
+  onHarmonicOrderChange,
+  onHarmonicAmountChange,
   onDriveChange,
-  onFoldChange,
   onAddFile,
 }: GeneratorProps) {
   const [midiNote, setMidiNote] = useState(DEFAULT_MIDI_NOTE)
   const [sweepCount, setSweepCount] = useState(DEFAULT_SWEEP_COUNT)
+  const [sampleRate, setSampleRate] = useState<GeneratorSampleRate>(48000)
+  const [bitDepth, setBitDepth] = useState<GeneratorBitDepth>(32)
   const [sweepLanes, setSweepLanes] = useState<SweepLanes>({})
   const midiNoteLabel = formatMidiNoteDisplay(midiNote)
   const currentParams = useMemo<GeneratorFrameParams>(
     () => ({
       source,
-      partialCount,
-      rolloff,
-      oddEvenBalance,
-      phaseDistortion,
-      fmAmount,
-      fmRatio,
+      phase,
+      pulseWidth,
+      harmonicOrder,
+      harmonicAmount,
       drive,
-      fold,
     }),
-    [
-      drive,
-      fmAmount,
-      fmRatio,
-      fold,
-      partialCount,
-      oddEvenBalance,
-      phaseDistortion,
-      rolloff,
-      source,
-    ],
+    [drive, harmonicAmount, harmonicOrder, phase, pulseWidth, source],
   )
+  const sourceOptions = GENERATOR_SOURCE_ORDER.map((sourceKey) => ({
+    value: sourceKey,
+    label: GENERATOR_SOURCE_DEFINITIONS[sourceKey].label,
+  }))
   const allControls: GeneratorControlValue[] = [
     {
-      id: 'generate-partials',
-      paramKey: 'partialCount',
-      label: 'Partials',
-      ariaLabel: 'Partials',
-      min: 1,
-      max: MAX_PARTIAL_COUNT,
+      id: 'generate-phase',
+      paramKey: 'phase',
+      label: 'Phase',
+      ariaLabel: 'Phase',
+      min: 0,
+      max: 1,
+      step: 0.001,
+      value: phase,
+      defaultValue: DEFAULT_PHASE,
+      onChange: onPhaseChange,
+    },
+    {
+      id: 'generate-pulse-width',
+      paramKey: 'pulseWidth',
+      label: 'PW',
+      ariaLabel: 'Pulse width',
+      min: -1,
+      max: 1,
+      step: 0.001,
+      value: pulseWidth,
+      defaultValue: DEFAULT_PULSE_WIDTH,
+      onChange: onPulseWidthChange,
+    },
+    {
+      id: 'generate-harmonic-order',
+      paramKey: 'harmonicOrder',
+      label: 'Harmonic',
+      ariaLabel: 'Harmonic order',
+      min: 2,
+      max: 12,
       step: 1,
       isInteger: true,
-      value: partialCount,
-      defaultValue: DEFAULT_PARTIAL_COUNT,
-      onChange: onPartialCountChange,
+      value: harmonicOrder,
+      defaultValue: DEFAULT_HARMONIC_ORDER,
+      onChange: onHarmonicOrderChange,
     },
     {
-      id: 'generate-rolloff',
-      paramKey: 'rolloff',
-      label: 'Rolloff',
-      ariaLabel: 'Rolloff',
-      min: 0,
-      max: 3,
-      step: 0.05,
-      value: rolloff,
-      defaultValue: DEFAULT_ROLLOFF,
-      onChange: onRolloffChange,
-    },
-    {
-      id: 'generate-odd-even',
-      paramKey: 'oddEvenBalance',
-      label: 'Odd/Even',
-      ariaLabel: 'Odd/even balance',
-      min: -1,
-      max: 1,
-      step: 0.05,
-      value: oddEvenBalance,
-      defaultValue: DEFAULT_ODD_EVEN_BALANCE,
-      onChange: onOddEvenBalanceChange,
-    },
-    {
-      id: 'generate-phase-distortion',
-      paramKey: 'phaseDistortion',
-      label: 'Phase Distortion',
-      ariaLabel: 'Phase distortion',
+      id: 'generate-harmonic-amount',
+      paramKey: 'harmonicAmount',
+      label: 'Harm Amt',
+      ariaLabel: 'Harmonic amount',
       min: -1,
       max: 1,
       step: 0.01,
-      value: phaseDistortion,
-      defaultValue: DEFAULT_PHASE_DISTORTION,
-      onChange: onPhaseDistortionChange,
-    },
-    {
-      id: 'generate-fm-amount',
-      paramKey: 'fmAmount',
-      label: 'FM Amount',
-      ariaLabel: 'FM amount',
-      min: 0,
-      max: 1,
-      step: 0.01,
-      value: fmAmount,
-      defaultValue: DEFAULT_FM_AMOUNT,
-      onChange: onFmAmountChange,
-    },
-    {
-      id: 'generate-fm-ratio',
-      paramKey: 'fmRatio',
-      label: 'FM Ratio',
-      ariaLabel: 'FM ratio',
-      min: 0.25,
-      max: 16,
-      step: 0.25,
-      value: fmRatio,
-      defaultValue: DEFAULT_FM_RATIO,
-      onChange: onFmRatioChange,
+      value: harmonicAmount,
+      defaultValue: DEFAULT_HARMONIC_AMOUNT,
+      onChange: onHarmonicAmountChange,
     },
     {
       id: 'generate-drive',
@@ -296,33 +266,16 @@ export default function Generator({
       defaultValue: DEFAULT_DRIVE,
       onChange: onDriveChange,
     },
-    {
-      id: 'generate-fold',
-      paramKey: 'fold',
-      label: 'Fold',
-      ariaLabel: 'Fold',
-      min: 0,
-      max: 1,
-      step: 0.01,
-      value: fold,
-      defaultValue: DEFAULT_FOLD,
-      onChange: onFoldChange,
-    },
   ]
   const activeParamKeys = new Set(
     GENERATOR_SOURCE_DEFINITIONS[source].params,
   )
-  const sourceOptions = GENERATOR_SOURCE_ORDER.map((sourceKey) => ({
-    value: sourceKey,
-    label: GENERATOR_SOURCE_DEFINITIONS[sourceKey].label,
-  }))
   const controls = allControls.filter((control) =>
     activeParamKeys.has(control.paramKey),
   )
   const hasActiveSweep = controls.some(
     (control) => sweepLanes[control.paramKey]?.enabled,
   )
-
   const samples = useMemo(
     () => renderGeneratorFrame(currentParams),
     [currentParams],
@@ -332,11 +285,11 @@ export default function Generator({
     const buffer = audioContext.createBuffer(
       1,
       FRAME_LENGTH,
-      settings.sampleRate,
+      sampleRate,
     )
     buffer.copyToChannel(samples, 0)
     return buffer
-  }, [audioContext, samples, settings.sampleRate])
+  }, [audioContext, sampleRate, samples])
 
   const { playback: playbackRef, ...playbackState } = useAudioPlayback({
     audioContext,
@@ -358,10 +311,10 @@ export default function Generator({
   }, [playbackRef, previewBuffer])
 
   useEffect(() => {
-    const baseFrequency = settings.sampleRate / FRAME_LENGTH
+    const baseFrequency = sampleRate / FRAME_LENGTH
     const targetFrequency = getMidiNoteFrequency(midiNote)
     playbackRef.current.setPlaybackRate(targetFrequency / baseFrequency)
-  }, [midiNote, playbackRef, settings.sampleRate])
+  }, [midiNote, playbackRef, sampleRate])
 
   function onClickPlayPause() {
     playbackRef.current.setLoopRegion({
@@ -419,7 +372,7 @@ export default function Generator({
     const buffer = audioContext.createBuffer(
       1,
       FRAME_LENGTH * sweepCount,
-      settings.sampleRate,
+      sampleRate,
     )
     const output = buffer.getChannelData(0)
     const denominator = sweepCount - 1
@@ -443,8 +396,8 @@ export default function Generator({
 
   async function addToFiles() {
     const outputBuffer = hasActiveSweep ? renderSweepBuffer() : previewBuffer
-    const bytes = encodeWav(outputBuffer, settings.bitDepth)
-    const defaultName = formatDefaultName(nextFrameNumber, hasActiveSweep)
+    const bytes = encodeWav(outputBuffer, bitDepth)
+    const defaultName = formatDefaultName(source, hasActiveSweep)
 
     const result = (await window.electron.invoke('save-wav', {
       bytes,
@@ -463,7 +416,7 @@ export default function Generator({
       type: 'audio/wav',
       duration: outputBuffer.duration,
       sampleRate: outputBuffer.sampleRate,
-      bitDepth: settings.bitDepth,
+      bitDepth,
       channels: 1,
       sampleCount: outputBuffer.length,
       audioBuffer: outputBuffer,
@@ -517,6 +470,36 @@ export default function Generator({
             aria-label="Sweep count"
           />
         </SweepCountControl>
+        <ExportControl>
+          <FieldLabel htmlFor="generate-sample-rate">Rate</FieldLabel>
+          <Select
+            id="generate-sample-rate"
+            value={String(sampleRate)}
+            options={SAMPLE_RATES.map((value) => ({
+              value: String(value),
+              label: `${value.toLocaleString()} Hz`,
+            }))}
+            onChange={(value) =>
+              setSampleRate(Number(value) as GeneratorSampleRate)
+            }
+            aria-label="Generator sample rate"
+          />
+        </ExportControl>
+        <ExportControl>
+          <FieldLabel htmlFor="generate-bit-depth">Depth</FieldLabel>
+          <Select
+            id="generate-bit-depth"
+            value={String(bitDepth)}
+            options={BIT_DEPTHS.map((value) => ({
+              value: String(value),
+              label: `${value}-bit`,
+            }))}
+            onChange={(value) =>
+              setBitDepth(Number(value) as GeneratorBitDepth)
+            }
+            aria-label="Generator bit depth"
+          />
+        </ExportControl>
         <Button type="button" onClick={addToFiles}>
           Generate
         </Button>
@@ -531,7 +514,7 @@ export default function Generator({
           onToggleSweepLane={toggleSweepLane}
           onChangeSweepLane={changeSweepLane}
         />
-        <Preview samples={samples} sampleRate={settings.sampleRate} />
+        <Preview samples={samples} sampleRate={sampleRate} />
       </Body>
     </Container>
   )

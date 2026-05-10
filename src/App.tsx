@@ -5,8 +5,12 @@ import { parseBlob } from 'music-metadata'
 import BulkView from './BulkView'
 import Generator from './Generator'
 import {
+  DEFAULT_DRIVE,
   DEFAULT_GENERATOR_SOURCE,
-  DEFAULT_PARTIAL_COUNT,
+  DEFAULT_HARMONIC_AMOUNT,
+  DEFAULT_HARMONIC_ORDER,
+  DEFAULT_PHASE,
+  DEFAULT_PULSE_WIDTH,
 } from './Generator/constants'
 import type { GeneratorSource } from './Generator/synthesis'
 import SettingsModal from './SettingsModal'
@@ -158,18 +162,16 @@ export default function App() {
   const [isLoadingFiles, setIsLoadingFiles] = useState(false)
   const [filesSelection, setFilesSelection] = useState<string[]>([])
   const [isFilesProcessing, setIsFilesProcessing] = useState(false)
-  const [nextFrameNumber, setNextFrameNumber] = useState(1)
   const [generatorSource, setGeneratorSource] = useState<GeneratorSource>(
     DEFAULT_GENERATOR_SOURCE,
   )
-  const [partialCount, setPartialCount] = useState(DEFAULT_PARTIAL_COUNT)
-  const [rolloff, setRolloff] = useState(1)
-  const [oddEvenBalance, setOddEvenBalance] = useState(0)
-  const [phaseDistortion, setPhaseDistortion] = useState(0)
-  const [fmAmount, setFmAmount] = useState(0)
-  const [fmRatio, setFmRatio] = useState(1)
-  const [drive, setDrive] = useState(0)
-  const [fold, setFold] = useState(0)
+  const [phase, setPhase] = useState(DEFAULT_PHASE)
+  const [pulseWidth, setPulseWidth] = useState(DEFAULT_PULSE_WIDTH)
+  const [harmonicOrder, setHarmonicOrder] = useState(DEFAULT_HARMONIC_ORDER)
+  const [harmonicAmount, setHarmonicAmount] = useState(
+    DEFAULT_HARMONIC_AMOUNT,
+  )
+  const [drive, setDrive] = useState(DEFAULT_DRIVE)
   const [settings, setSettings] = useState<Settings>({
     sampleRate: 48000,
     bitDepth: 24,
@@ -291,7 +293,6 @@ export default function App() {
   function addGeneratedFile(file: AudioFile) {
     setFiles((prev) => [...prev, file])
     setSelectedFileId(file.id)
-    setNextFrameNumber((prev) => prev + 1)
   }
 
   function updateFile(next: AudioFile) {
@@ -361,27 +362,19 @@ export default function App() {
     if (activeWorkspace === 'generate') {
       return (
         <Generator
-          settings={settings}
           audioContext={audioCtx}
-          nextFrameNumber={nextFrameNumber}
           source={generatorSource}
-          partialCount={partialCount}
-          rolloff={rolloff}
-          oddEvenBalance={oddEvenBalance}
-          phaseDistortion={phaseDistortion}
-          fmAmount={fmAmount}
-          fmRatio={fmRatio}
+          phase={phase}
+          pulseWidth={pulseWidth}
+          harmonicOrder={harmonicOrder}
+          harmonicAmount={harmonicAmount}
           drive={drive}
-          fold={fold}
           onSourceChange={setGeneratorSource}
-          onPartialCountChange={setPartialCount}
-          onRolloffChange={setRolloff}
-          onOddEvenBalanceChange={setOddEvenBalance}
-          onPhaseDistortionChange={setPhaseDistortion}
-          onFmAmountChange={setFmAmount}
-          onFmRatioChange={setFmRatio}
+          onPhaseChange={setPhase}
+          onPulseWidthChange={setPulseWidth}
+          onHarmonicOrderChange={setHarmonicOrder}
+          onHarmonicAmountChange={setHarmonicAmount}
           onDriveChange={setDrive}
-          onFoldChange={setFold}
           onAddFile={addGeneratedFile}
         />
       )

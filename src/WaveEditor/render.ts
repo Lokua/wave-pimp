@@ -216,6 +216,13 @@ function drawChannelWaveform(
       zeroLineY,
       amplitudeScale,
     })
+    paintDiscontinuitySpans(ctx, {
+      maxs,
+      mins,
+      zeroLineY,
+      amplitudeScale,
+      cssWidth,
+    })
     return
   }
 
@@ -317,6 +324,9 @@ function paintPeakLine(
     cssWidth: number
   },
 ) {
+  ctx.strokeStyle = readCssVar('--waveform-color')
+  ctx.lineWidth = 1
+
   ctx.beginPath()
   for (let i = 0; i < cssWidth; i++) {
     const min = mins[i] ?? 0
@@ -329,8 +339,105 @@ function paintPeakLine(
     else ctx.lineTo(x, y)
   }
 
+  ctx.stroke()
+
+  paintIntraPixelSpans(ctx, {
+    maxs,
+    mins,
+    zeroLineY,
+    amplitudeScale,
+    cssWidth,
+  })
+  paintDiscontinuitySpans(ctx, {
+    maxs,
+    mins,
+    zeroLineY,
+    amplitudeScale,
+    cssWidth,
+  })
+}
+
+function paintIntraPixelSpans(
+  ctx: CanvasRenderingContext2D,
+  {
+    maxs,
+    mins,
+    zeroLineY,
+    amplitudeScale,
+    cssWidth,
+  }: {
+    maxs: Float32Array
+    mins: Float32Array
+    zeroLineY: number
+    amplitudeScale: number
+    cssWidth: number
+  },
+) {
+  ctx.beginPath()
+  for (let i = 0; i < cssWidth; i++) {
+    const min = mins[i] ?? 0
+    const max = maxs[i] ?? 0
+    if (max <= min) continue
+
+    const x = i + 0.5
+    const yMax = zeroLineY - max * amplitudeScale
+    const yMin = zeroLineY - min * amplitudeScale
+    if (Math.abs(yMin - yMax) < 1) continue
+
+    ctx.moveTo(x, yMax)
+    ctx.lineTo(x, yMin)
+  }
+  ctx.stroke()
+}
+
+function paintDiscontinuitySpans(
+  ctx: CanvasRenderingContext2D,
+  {
+    maxs,
+    mins,
+    zeroLineY,
+    amplitudeScale,
+    cssWidth,
+  }: {
+    maxs: Float32Array
+    mins: Float32Array
+    zeroLineY: number
+    amplitudeScale: number
+    cssWidth: number
+  },
+) {
   ctx.strokeStyle = readCssVar('--waveform-color')
   ctx.lineWidth = 1
+  ctx.beginPath()
+
+  for (let i = 1; i < cssWidth; i++) {
+    const prevMin = mins[i - 1] ?? 0
+    const prevMax = maxs[i - 1] ?? 0
+    const min = mins[i] ?? 0
+    const max = maxs[i] ?? 0
+
+    let from: number | null = null
+    let to: number | null = null
+
+    if (prevMax < min) {
+      from = prevMax
+      to = min
+    } else if (max < prevMin) {
+      from = prevMin
+      to = max
+    }
+
+    if (from == null || to == null) continue
+
+    const yFrom = zeroLineY - from * amplitudeScale
+    const yTo = zeroLineY - to * amplitudeScale
+    if (Math.abs(yTo - yFrom) < 1) continue
+
+    const x = i
+    ctx.moveTo(x, yFrom)
+    ctx.lineTo(x, yTo)
+  }
+
   ctx.stroke()
 }
 
