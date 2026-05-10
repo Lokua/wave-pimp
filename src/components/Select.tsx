@@ -1,12 +1,13 @@
 import styled from '@emotion/styled'
 
 type Override<T, U> = Omit<T, keyof U> & U
+type SelectOption = string | number | { label: string; value: string }
 
 type Props = Override<
   React.HTMLAttributes<HTMLSelectElement>,
   {
     value: string
-    options: string[] | number[]
+    options: SelectOption[]
     onChange: (value: string) => void
   }
 >
@@ -33,12 +34,14 @@ const SelectWrapper = styled.span`
 
 const StyledSelect = styled.select`
   width: 100%;
-  padding: 8px 28px 8px 10px;
+  height: 22px;
+  margin: 1px;
+  padding: 0 28px 0 10px;
   border: 1px solid var(--border-color);
   border-radius: 2px;
   background: var(--button-bg);
   color: var(--text-color);
-  font-size: 12px;
+  font-size: 10px;
   appearance: none;
 `
 
@@ -52,11 +55,16 @@ export default function Select({ value, options, onChange, ...rest }: Props) {
         }}
         {...rest}
       >
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
+        {options.map((option) => {
+          const value = typeof option === 'object' ? option.value : option
+          const label = typeof option === 'object' ? option.label : option
+
+          return (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          )
+        })}
       </StyledSelect>
     </SelectWrapper>
   )

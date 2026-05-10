@@ -4,7 +4,8 @@ import FieldLabel from '../components/FieldLabel'
 import IconButton from '../components/IconButton'
 import NumberBox from '../components/NumberBox'
 import Range from '../components/Range'
-import type { AdditiveFrameParams } from './synthesis'
+import Select from '../components/Select'
+import type { GeneratorParamKey, GeneratorSource } from './synthesis'
 
 const ControlsPane = styled.div`
   min-height: 0;
@@ -30,6 +31,10 @@ const ControlInputs = styled.div`
   gap: 6px;
 `
 
+const SourceInputs = styled.div`
+  max-width: 160px;
+`
+
 const SweepInputs = styled.div`
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr) 20px minmax(0, 1fr);
@@ -44,7 +49,7 @@ const SweepLabel = styled(FieldLabel)`
 
 export type GeneratorControlValue = {
   id: string
-  paramKey: keyof AdditiveFrameParams
+  paramKey: GeneratorParamKey
   label: string
   ariaLabel: string
   min: number
@@ -63,8 +68,11 @@ export type SweepLaneValue = {
 }
 
 type ControlsProps = {
+  source: GeneratorSource
+  sourceOptions: Array<{ label: string; value: string }>
   controls: GeneratorControlValue[]
-  sweepLanes: Partial<Record<keyof AdditiveFrameParams, SweepLaneValue>>
+  sweepLanes: Partial<Record<GeneratorParamKey, SweepLaneValue>>
+  onSourceChange: (source: string) => void
   onToggleSweepLane: (control: GeneratorControlValue) => void
   onChangeSweepLane: (
     control: GeneratorControlValue,
@@ -74,13 +82,28 @@ type ControlsProps = {
 }
 
 export default function Controls({
+  source,
+  sourceOptions,
   controls,
   sweepLanes,
+  onSourceChange,
   onToggleSweepLane,
   onChangeSweepLane,
 }: ControlsProps) {
   return (
     <ControlsPane>
+      <ControlGroup>
+        <FieldLabel htmlFor="generate-source">Shape</FieldLabel>
+        <SourceInputs>
+          <Select
+            id="generate-source"
+            value={source}
+            options={sourceOptions}
+            onChange={onSourceChange}
+            aria-label="Generator shape"
+          />
+        </SourceInputs>
+      </ControlGroup>
       {controls.map((control) => {
         const sweepLane = sweepLanes[control.paramKey]
         const isSweeping = sweepLane?.enabled ?? false

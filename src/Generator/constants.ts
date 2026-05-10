@@ -1,6 +1,8 @@
 export const FRAME_LENGTH = 2048
+export const DEFAULT_GENERATOR_SOURCE = 'additive'
 export const DEFAULT_MIDI_NOTE = 36
-export const DEFAULT_HARMONIC_COUNT = 1
+export const DEFAULT_PARTIAL_COUNT = 1
+export const MAX_PARTIAL_COUNT = 512
 export const DEFAULT_ROLLOFF = 1
 export const DEFAULT_ODD_EVEN_BALANCE = 0
 export const DEFAULT_PHASE_DISTORTION = 0

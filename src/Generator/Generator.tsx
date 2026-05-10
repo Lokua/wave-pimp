@@ -16,19 +16,24 @@ import {
   DEFAULT_FM_AMOUNT,
   DEFAULT_FM_RATIO,
   DEFAULT_FOLD,
-  DEFAULT_HARMONIC_COUNT,
+  DEFAULT_PARTIAL_COUNT,
   DEFAULT_MIDI_NOTE,
   DEFAULT_ODD_EVEN_BALANCE,
   DEFAULT_PHASE_DISTORTION,
   DEFAULT_ROLLOFF,
   DEFAULT_SWEEP_COUNT,
   FRAME_LENGTH,
+  MAX_PARTIAL_COUNT,
   MAX_SWEEP_COUNT,
 } from './constants'
 import { formatMidiNoteDisplay, getMidiNoteFrequency } from './midi'
 import {
-  type AdditiveFrameParams,
-  renderAdditiveFrame,
+  GENERATOR_SOURCE_DEFINITIONS,
+  GENERATOR_SOURCE_ORDER,
+  type GeneratorFrameParams,
+  type GeneratorParamKey,
+  type GeneratorSource,
+  renderGeneratorFrame,
 } from './synthesis'
 
 const Container = styled.div`
@@ -100,7 +105,7 @@ type SweepLane = {
   to: number
 }
 
-type SweepLanes = Partial<Record<keyof AdditiveFrameParams, SweepLane>>
+type SweepLanes = Partial<Record<GeneratorParamKey, SweepLane>>
 
 function formatDefaultName(frameNumber: number, isSweep: boolean) {
   if (isSweep) return 'sweep.wav'
@@ -132,7 +137,8 @@ type GeneratorProps = {
   settings: Settings
   audioContext: AudioContext
   nextFrameNumber: number
-  harmonicCount: number
+  source: GeneratorSource
+  partialCount: number
   rolloff: number
   oddEvenBalance: number
   phaseDistortion: number
@@ -140,7 +146,8 @@ type GeneratorProps = {
   fmRatio: number
   drive: number
   fold: number
-  onHarmonicCountChange: (v: number) => void
+  onSourceChange: (v: GeneratorSource) => void
+  onPartialCountChange: (v: number) => void
   onRolloffChange: (v: number) => void
   onOddEvenBalanceChange: (v: number) => void
   onPhaseDistortionChange: (v: number) => void
@@ -155,7 +162,8 @@ export default function Generator({
   settings,
   audioContext,
   nextFrameNumber,
-  harmonicCount,
+  source,
+  partialCount,
   rolloff,
   oddEvenBalance,
   phaseDistortion,
@@ -163,7 +171,8 @@ export default function Generator({
   fmRatio,
   drive,
   fold,
-  onHarmonicCountChange,
+  onSourceChange,
+  onPartialCountChange,
   onRolloffChange,
   onOddEvenBalanceChange,
   onPhaseDistortionChange,
@@ -177,9 +186,10 @@ export default function Generator({
   const [sweepCount, setSweepCount] = useState(DEFAULT_SWEEP_COUNT)
   const [sweepLanes, setSweepLanes] = useState<SweepLanes>({})
   const midiNoteLabel = formatMidiNoteDisplay(midiNote)
-  const currentParams = useMemo<AdditiveFrameParams>(
+  const currentParams = useMemo<GeneratorFrameParams>(
     () => ({
-      harmonicCount,
+      source,
+      partialCount,
       rolloff,
       oddEvenBalance,
       phaseDistortion,
@@ -193,49 +203,26 @@ export default function Generator({
       fmAmount,
       fmRatio,
       fold,
-      harmonicCount,
+      partialCount,
       oddEvenBalance,
       phaseDistortion,
       rolloff,
+      source,
     ],
   )
-  const hasActiveSweep = Object.values(sweepLanes).some(
-    (lane) => lane?.enabled,
-  )
-
-  const samples = useMemo(
-    () => renderAdditiveFrame(currentParams),
-    [currentParams],
-  )
-
-  const previewBuffer = useMemo(() => {
-    const buffer = audioContext.createBuffer(
-      1,
-      FRAME_LENGTH,
-      settings.sampleRate,
-    )
-    buffer.copyToChannel(samples, 0)
-    return buffer
-  }, [audioContext, samples, settings.sampleRate])
-
-  const { playback: playbackRef, ...playbackState } = useAudioPlayback({
-    audioContext,
-    audioBuffer: previewBuffer,
-  })
-
-  const controls: GeneratorControlValue[] = [
+  const allControls: GeneratorControlValue[] = [
     {
-      id: 'generate-harmonics',
-      paramKey: 'harmonicCount',
-      label: 'Harmonics',
-      ariaLabel: 'Harmonics',
+      id: 'generate-partials',
+      paramKey: 'partialCount',
+      label: 'Partials',
+      ariaLabel: 'Partials',
       min: 1,
-      max: 64,
+      max: MAX_PARTIAL_COUNT,
       step: 1,
       isInteger: true,
-      value: harmonicCount,
-      defaultValue: DEFAULT_HARMONIC_COUNT,
-      onChange: onHarmonicCountChange,
+      value: partialCount,
+      defaultValue: DEFAULT_PARTIAL_COUNT,
+      onChange: onPartialCountChange,
     },
     {
       id: 'generate-rolloff',
@@ -322,6 +309,39 @@ export default function Generator({
       onChange: onFoldChange,
     },
   ]
+  const activeParamKeys = new Set(
+    GENERATOR_SOURCE_DEFINITIONS[source].params,
+  )
+  const sourceOptions = GENERATOR_SOURCE_ORDER.map((sourceKey) => ({
+    value: sourceKey,
+    label: GENERATOR_SOURCE_DEFINITIONS[sourceKey].label,
+  }))
+  const controls = allControls.filter((control) =>
+    activeParamKeys.has(control.paramKey),
+  )
+  const hasActiveSweep = controls.some(
+    (control) => sweepLanes[control.paramKey]?.enabled,
+  )
+
+  const samples = useMemo(
+    () => renderGeneratorFrame(currentParams),
+    [currentParams],
+  )
+
+  const previewBuffer = useMemo(() => {
+    const buffer = audioContext.createBuffer(
+      1,
+      FRAME_LENGTH,
+      settings.sampleRate,
+    )
+    buffer.copyToChannel(samples, 0)
+    return buffer
+  }, [audioContext, samples, settings.sampleRate])
+
+  const { playback: playbackRef, ...playbackState } = useAudioPlayback({
+    audioContext,
+    audioBuffer: previewBuffer,
+  })
 
   useEffect(() => {
     const loopRegion = {
@@ -353,6 +373,12 @@ export default function Generator({
       playbackRef.current.pause()
     } else {
       playbackRef.current.play()
+    }
+  }
+
+  function changeSource(nextSource: string) {
+    if (nextSource in GENERATOR_SOURCE_DEFINITIONS) {
+      onSourceChange(nextSource as GeneratorSource)
     }
   }
 
@@ -409,7 +435,7 @@ export default function Generator({
         params[control.paramKey] = snapToControl(value, control)
       }
 
-      output.set(renderAdditiveFrame(params), frameIndex * FRAME_LENGTH)
+      output.set(renderGeneratorFrame(params), frameIndex * FRAME_LENGTH)
     }
 
     return buffer
@@ -492,13 +518,16 @@ export default function Generator({
           />
         </SweepCountControl>
         <Button type="button" onClick={addToFiles}>
-          {hasActiveSweep ? 'Generate' : 'Add to Files'}
+          Generate
         </Button>
       </Toolbar>
       <Body>
         <Controls
+          source={source}
+          sourceOptions={sourceOptions}
           controls={controls}
           sweepLanes={sweepLanes}
+          onSourceChange={changeSource}
           onToggleSweepLane={toggleSweepLane}
           onChangeSweepLane={changeSweepLane}
         />

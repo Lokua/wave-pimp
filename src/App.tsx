@@ -4,6 +4,11 @@ import { parseBlob } from 'music-metadata'
 
 import BulkView from './BulkView'
 import Generator from './Generator'
+import {
+  DEFAULT_GENERATOR_SOURCE,
+  DEFAULT_PARTIAL_COUNT,
+} from './Generator/constants'
+import type { GeneratorSource } from './Generator/synthesis'
 import SettingsModal from './SettingsModal'
 import WaveEditor from './WaveEditor'
 import type { AudioFile, Settings } from './types'
@@ -154,7 +159,10 @@ export default function App() {
   const [filesSelection, setFilesSelection] = useState<string[]>([])
   const [isFilesProcessing, setIsFilesProcessing] = useState(false)
   const [nextFrameNumber, setNextFrameNumber] = useState(1)
-  const [harmonicCount, setHarmonicCount] = useState(1)
+  const [generatorSource, setGeneratorSource] = useState<GeneratorSource>(
+    DEFAULT_GENERATOR_SOURCE,
+  )
+  const [partialCount, setPartialCount] = useState(DEFAULT_PARTIAL_COUNT)
   const [rolloff, setRolloff] = useState(1)
   const [oddEvenBalance, setOddEvenBalance] = useState(0)
   const [phaseDistortion, setPhaseDistortion] = useState(0)
@@ -356,7 +364,8 @@ export default function App() {
           settings={settings}
           audioContext={audioCtx}
           nextFrameNumber={nextFrameNumber}
-          harmonicCount={harmonicCount}
+          source={generatorSource}
+          partialCount={partialCount}
           rolloff={rolloff}
           oddEvenBalance={oddEvenBalance}
           phaseDistortion={phaseDistortion}
@@ -364,7 +373,8 @@ export default function App() {
           fmRatio={fmRatio}
           drive={drive}
           fold={fold}
-          onHarmonicCountChange={setHarmonicCount}
+          onSourceChange={setGeneratorSource}
+          onPartialCountChange={setPartialCount}
           onRolloffChange={setRolloff}
           onOddEvenBalanceChange={setOddEvenBalance}
           onPhaseDistortionChange={setPhaseDistortion}
