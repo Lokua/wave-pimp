@@ -21,6 +21,8 @@ import Controls, {
 } from './Controls'
 import {
   DEFAULT_DRIVE,
+  DEFAULT_FM_AMOUNT,
+  DEFAULT_FM_RATIO,
   DEFAULT_GENERATOR_BIT_DEPTH,
   DEFAULT_GENERATOR_SAMPLE_RATE,
   DEFAULT_HARMONIC_AMOUNT,
@@ -152,6 +154,8 @@ type GeneratorProps = {
   source: GeneratorSource
   phase: number
   pulseWidth: number
+  fmRatio: number
+  fmAmount: number
   harmonicOrder: number
   harmonicAmount: number
   drive: number
@@ -165,6 +169,8 @@ type GeneratorProps = {
   onSourceChange: (v: GeneratorSource) => void
   onPhaseChange: (v: number) => void
   onPulseWidthChange: (v: number) => void
+  onFmRatioChange: (v: number) => void
+  onFmAmountChange: (v: number) => void
   onHarmonicOrderChange: (v: number) => void
   onHarmonicAmountChange: (v: number) => void
   onDriveChange: (v: number) => void
@@ -181,6 +187,8 @@ export default function Generator({
   source,
   phase,
   pulseWidth,
+  fmRatio,
+  fmAmount,
   harmonicOrder,
   harmonicAmount,
   drive,
@@ -192,6 +200,8 @@ export default function Generator({
   onSourceChange,
   onPhaseChange,
   onPulseWidthChange,
+  onFmRatioChange,
+  onFmAmountChange,
   onHarmonicOrderChange,
   onHarmonicAmountChange,
   onDriveChange,
@@ -203,11 +213,22 @@ export default function Generator({
       source,
       phase,
       pulseWidth,
+      fmRatio,
+      fmAmount,
       harmonicOrder,
       harmonicAmount,
       drive,
     }),
-    [drive, harmonicAmount, harmonicOrder, phase, pulseWidth, source],
+    [
+      drive,
+      fmAmount,
+      fmRatio,
+      harmonicAmount,
+      harmonicOrder,
+      phase,
+      pulseWidth,
+      source,
+    ],
   )
   const sourceOptions = GENERATOR_SOURCE_ORDER.map((sourceKey) => ({
     value: sourceKey,
@@ -237,6 +258,31 @@ export default function Generator({
       value: pulseWidth,
       defaultValue: DEFAULT_PULSE_WIDTH,
       onChange: onPulseWidthChange,
+    },
+    {
+      id: 'generate-fm-ratio',
+      paramKey: 'fmRatio',
+      label: 'FM Ratio',
+      ariaLabel: 'FM ratio',
+      min: 1,
+      max: 12,
+      step: 1,
+      isInteger: true,
+      value: fmRatio,
+      defaultValue: DEFAULT_FM_RATIO,
+      onChange: onFmRatioChange,
+    },
+    {
+      id: 'generate-fm-amount',
+      paramKey: 'fmAmount',
+      label: 'FM Amt',
+      ariaLabel: 'FM amount',
+      min: 0,
+      max: 1,
+      step: 0.01,
+      value: fmAmount,
+      defaultValue: DEFAULT_FM_AMOUNT,
+      onChange: onFmAmountChange,
     },
     {
       id: 'generate-harmonic-order',

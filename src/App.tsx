@@ -7,6 +7,8 @@ import Generator from './Generator'
 import type { SweepLanes } from './Generator/Controls'
 import {
   DEFAULT_DRIVE,
+  DEFAULT_FM_AMOUNT,
+  DEFAULT_FM_RATIO,
   DEFAULT_GENERATOR_BIT_DEPTH,
   DEFAULT_GENERATOR_SAMPLE_RATE,
   DEFAULT_GENERATOR_SOURCE,
@@ -210,6 +212,8 @@ export default function App() {
   )
   const [phase, setPhase] = useState(DEFAULT_PHASE)
   const [pulseWidth, setPulseWidth] = useState(DEFAULT_PULSE_WIDTH)
+  const [fmRatio, setFmRatio] = useState(DEFAULT_FM_RATIO)
+  const [fmAmount, setFmAmount] = useState(DEFAULT_FM_AMOUNT)
   const [harmonicOrder, setHarmonicOrder] = useState(DEFAULT_HARMONIC_ORDER)
   const [harmonicAmount, setHarmonicAmount] = useState(
     DEFAULT_HARMONIC_AMOUNT,
@@ -430,6 +434,8 @@ export default function App() {
           source={generatorSource}
           phase={phase}
           pulseWidth={pulseWidth}
+          fmRatio={fmRatio}
+          fmAmount={fmAmount}
           harmonicOrder={harmonicOrder}
           harmonicAmount={harmonicAmount}
           drive={drive}
@@ -441,6 +447,8 @@ export default function App() {
           onSourceChange={setGeneratorSource}
           onPhaseChange={setPhase}
           onPulseWidthChange={setPulseWidth}
+          onFmRatioChange={setFmRatio}
+          onFmAmountChange={setFmAmount}
           onHarmonicOrderChange={setHarmonicOrder}
           onHarmonicAmountChange={setHarmonicAmount}
           onDriveChange={setDrive}

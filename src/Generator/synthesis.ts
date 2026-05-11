@@ -5,6 +5,8 @@ export type GeneratorSource = 'sine' | 'triangle' | 'saw' | 'square'
 export type GeneratorParamValues = {
   phase: number
   pulseWidth: number
+  fmRatio: number
+  fmAmount: number
   harmonicOrder: number
   harmonicAmount: number
   drive: number
@@ -35,6 +37,8 @@ export const GENERATOR_SOURCE_DEFINITIONS: Record<
     params: [
       'phase',
       'pulseWidth',
+      'fmRatio',
+      'fmAmount',
       'harmonicOrder',
       'harmonicAmount',
       'drive',
@@ -45,6 +49,8 @@ export const GENERATOR_SOURCE_DEFINITIONS: Record<
     params: [
       'phase',
       'pulseWidth',
+      'fmRatio',
+      'fmAmount',
       'harmonicOrder',
       'harmonicAmount',
       'drive',
@@ -55,6 +61,8 @@ export const GENERATOR_SOURCE_DEFINITIONS: Record<
     params: [
       'phase',
       'pulseWidth',
+      'fmRatio',
+      'fmAmount',
       'harmonicOrder',
       'harmonicAmount',
       'drive',
@@ -62,7 +70,7 @@ export const GENERATOR_SOURCE_DEFINITIONS: Record<
   },
   square: {
     label: 'Square',
-    params: ['phase', 'pulseWidth'],
+    params: ['phase', 'pulseWidth', 'fmRatio', 'fmAmount'],
   },
 }
 
@@ -71,7 +79,7 @@ function wrapPhase(phase: number) {
 }
 
 function phaseAt(sampleIndex: number, phaseOffset: number) {
-  return wrapPhase(sampleIndex / FRAME_LENGTH + phaseOffset)
+  return wrapPhase(sampleIndex / (FRAME_LENGTH - 1) + phaseOffset)
 }
 
 function getPulseWidth(amount: number) {
@@ -86,6 +94,21 @@ function applyPulseWidth(phase: number, amount: number) {
   }
 
   return 0.5 + ((phase - pulseWidth) / (1 - pulseWidth)) * 0.5
+}
+
+function snapFmRatio(ratio: number) {
+  return Math.max(1, Math.min(12, Math.round(ratio)))
+}
+
+function applyFrequencyModulation(
+  phase: number,
+  ratio: number,
+  amount: number,
+) {
+  if (amount === 0) return phase
+
+  const modulator = Math.sin(Math.PI * 2 * snapFmRatio(ratio) * phase)
+  return wrapPhase(phase + amount * 0.5 * modulator)
 }
 
 function renderSample(source: GeneratorSource, phase: number) {
@@ -125,52 +148,66 @@ function saturateSample(sample: number, amount: number) {
   return Math.tanh(sample * drive) / Math.tanh(drive)
 }
 
-function chebyshev(order: number, sample: number) {
-  if (order <= 1) return sample
-  if (order === 2) return 2 * sample * sample - 1
-
-  let previous = sample
-  let current = 2 * sample * sample - 1
-
-  for (let n = 3; n <= order; n++) {
-    const next = 2 * sample * current - previous
-    previous = current
-    current = next
-  }
-
-  return current
+function sourceUsesParam(
+  source: GeneratorSource,
+  param: GeneratorParamKey,
+) {
+  return GENERATOR_SOURCE_DEFINITIONS[source].params.includes(param)
 }
 
 function applyHarmonicDistortion(
+  source: GeneratorSource,
   sample: number,
+  phase: number,
   amount: number,
   order: number,
 ) {
   if (amount === 0) return sample
 
   const harmonicOrder = Math.max(2, Math.round(order))
-  return sample + amount * chebyshev(harmonicOrder, sample)
+  const harmonicPhase = wrapPhase(phase * harmonicOrder)
+  const harmonic = renderSample(source, harmonicPhase)
+  return sample + amount * harmonic
 }
 
 export function renderGeneratorFrame({
   source,
   phase,
   pulseWidth,
+  fmRatio,
+  fmAmount,
   harmonicOrder,
   harmonicAmount,
   drive,
 }: GeneratorFrameParams) {
   const samples = new Float32Array(FRAME_LENGTH)
+  const effectiveFmAmount = sourceUsesParam(source, 'fmAmount')
+    ? fmAmount
+    : 0
+  const effectiveHarmonicAmount = sourceUsesParam(
+    source,
+    'harmonicAmount',
+  )
+    ? harmonicAmount
+    : 0
+  const effectiveDrive = sourceUsesParam(source, 'drive') ? drive : 0
 
   for (let i = 0; i < FRAME_LENGTH; i++) {
-    const shapedPhase = applyPulseWidth(phaseAt(i, phase), pulseWidth)
+    const modulatedPhase = applyFrequencyModulation(
+      phaseAt(i, phase),
+      fmRatio,
+      effectiveFmAmount,
+    )
+    const shapedPhase = applyPulseWidth(modulatedPhase, pulseWidth)
     const baseSample = renderSample(source, shapedPhase)
     const harmonicSample = applyHarmonicDistortion(
+      source,
       baseSample,
-      harmonicAmount,
+      shapedPhase,
+      effectiveHarmonicAmount,
       harmonicOrder,
     )
-    samples[i] = saturateSample(harmonicSample, drive)
+    samples[i] = saturateSample(harmonicSample, effectiveDrive)
   }
 
   normalize(samples)
