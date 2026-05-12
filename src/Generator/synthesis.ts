@@ -78,6 +78,10 @@ function wrapPhase(phase: number) {
   return ((phase % 1) + 1) % 1
 }
 
+function clampPhase(phase: number) {
+  return Math.min(1, Math.max(0, phase))
+}
+
 function phaseAt(sampleIndex: number, phaseOffset: number) {
   return wrapPhase(sampleIndex / (FRAME_LENGTH - 1) + phaseOffset)
 }
@@ -102,13 +106,26 @@ function snapFmRatio(ratio: number) {
 
 function applyFrequencyModulation(
   phase: number,
+  source: GeneratorSource,
   ratio: number,
   amount: number,
+  wrapModulatedPhase = true,
 ) {
   if (amount === 0) return phase
 
-  const modulator = Math.sin(Math.PI * 2 * snapFmRatio(ratio) * phase)
-  return wrapPhase(phase + amount * 0.5 * modulator)
+  const modulatorPhase = wrapPhase(snapFmRatio(ratio) * phase)
+  const modulator =
+    source === 'triangle'
+      ? renderSample('triangle', modulatorPhase)
+      : Math.sin(Math.PI * 2 * modulatorPhase)
+  const modulatedPhase = phase + amount * 0.5 * modulator
+  return wrapModulatedPhase
+    ? wrapPhase(modulatedPhase)
+    : clampPhase(modulatedPhase)
+}
+
+function sourceUsesClampedFm(source: GeneratorSource) {
+  return source === 'saw' || source === 'square'
 }
 
 function renderSample(source: GeneratorSource, phase: number) {
@@ -195,8 +212,10 @@ export function renderGeneratorFrame({
   for (let i = 0; i < FRAME_LENGTH; i++) {
     const modulatedPhase = applyFrequencyModulation(
       phaseAt(i, phase),
+      source,
       fmRatio,
       effectiveFmAmount,
+      !sourceUsesClampedFm(source),
     )
     const shapedPhase = applyPulseWidth(modulatedPhase, pulseWidth)
     const baseSample = renderSample(source, shapedPhase)
