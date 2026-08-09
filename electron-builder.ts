@@ -3,6 +3,7 @@ import { Configuration } from 'electron-builder'
 const config: Configuration = {
   appId: 'com.lokua.vmc',
   asar: true,
+  asarUnpack: ['node_modules/naudiodon2/build/Release/*'],
   productName: 'VMC',
   directories: {
     output: 'release/${version}',

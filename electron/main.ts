@@ -5,7 +5,6 @@ import {
   dialog,
   ipcMain,
   Menu,
-  session,
   type MenuItemConstructorOptions,
 } from 'electron'
 import { fileURLToPath } from 'node:url'
@@ -17,6 +16,7 @@ import {
   buildPeaksCacheLevel,
   calculateBlockSizes,
 } from './peaksBuilder'
+import ScopeCapture from './scopeCapture'
 
 app.setPath('crashDumps', path.join(app.getPath('userData'), 'crashes'))
 
@@ -68,6 +68,7 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   : RENDERER_DIST
 
 let win: BrowserWindow | null
+const scopeCapture = new ScopeCapture()
 
 function sendOpenSettings() {
   const target = BrowserWindow.getFocusedWindow() ?? win
@@ -217,6 +218,9 @@ function createWindow() {
   })
 
   attachWebContentsDeathLogging(win)
+  win.on('closed', () => {
+    void scopeCapture.stop()
+  })
 
   // Test active push message to Renderer-process.
   win.webContents.on('did-finish-load', () => {
@@ -271,6 +275,46 @@ ipcMain.handle(
     }
   },
 )
+
+function isAppSender(sender: Electron.WebContents) {
+  return sender === win?.webContents
+}
+
+ipcMain.handle('scope-list-input-devices', (event) => {
+  if (!isAppSender(event.sender)) throw new Error('Invalid Scope request.')
+  return scopeCapture.listInputDevices()
+})
+
+ipcMain.handle(
+  'scope-start',
+  async (
+    event,
+    data: {
+      deviceId: number
+      traces: Array<{ channel: number; enabled: boolean }>
+    },
+  ) => {
+    if (!isAppSender(event.sender)) throw new Error('Invalid Scope request.')
+    return scopeCapture.start({
+      target: event.sender,
+      deviceId: data.deviceId,
+      traces: data.traces,
+    })
+  },
+)
+
+ipcMain.handle(
+  'scope-set-traces',
+  (event, traces: Array<{ channel: number; enabled: boolean }>) => {
+    if (!isAppSender(event.sender)) throw new Error('Invalid Scope request.')
+    scopeCapture.setTraces(traces)
+  },
+)
+
+ipcMain.handle('scope-stop', async (event) => {
+  if (!isAppSender(event.sender)) throw new Error('Invalid Scope request.')
+  await scopeCapture.stop()
+})
 
 ipcMain.handle(
   'save-wav',
@@ -379,19 +423,6 @@ contextMenu({
 })
 
 app.whenReady().then(() => {
-  session.defaultSession.setPermissionCheckHandler(
-    (webContents, permission) =>
-      permission === 'media' && webContents === win?.webContents,
-  )
-  session.defaultSession.setPermissionRequestHandler(
-    (webContents, permission, callback, details) => {
-      const isAppWindow = webContents === win?.webContents
-      const mediaTypes =
-        'mediaTypes' in details ? details.mediaTypes : undefined
-      const requestsVideo = mediaTypes?.includes('video') ?? false
-      callback(isAppWindow && permission === 'media' && !requestsVideo)
-    },
-  )
   createWindow()
   createAppMenu()
 })

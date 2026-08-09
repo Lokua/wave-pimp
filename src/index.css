@@ -24,7 +24,10 @@
     --cursor-color: #f00;
     --scope-grid-color: #e8e8e8;
     --scope-label-color: #777;
-    --scope-trace-color: #d000b8;
+    --scope-trace-red: #d00000;
+    --scope-trace-green: #16853a;
+    --scope-trace-yellow: #b88600;
+    --scope-trace-blue: #006bd6;
   }
 }
 
@@ -49,7 +52,10 @@
     --cursor-color: #ff6666;
     --scope-grid-color: #202820;
     --scope-label-color: #829082;
-    --scope-trace-color: #ff4fe1;
+    --scope-trace-red: #ff3b3b;
+    --scope-trace-green: #34c759;
+    --scope-trace-yellow: #ffd60a;
+    --scope-trace-blue: #0a84ff;
   }
 }
 
