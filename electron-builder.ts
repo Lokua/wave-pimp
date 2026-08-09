@@ -12,6 +12,10 @@ const config: Configuration = {
   mac: {
     target: ['dmg'],
     artifactName: '${productName}-Mac-${version}-Installer.${ext}',
+    extendInfo: {
+      NSMicrophoneUsageDescription:
+        'VMC uses audio input to display signals in Scope.',
+    },
   },
   win: {
     target: [

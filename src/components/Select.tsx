@@ -4,7 +4,7 @@ type Override<T, U> = Omit<T, keyof U> & U
 type SelectOption = string | number | { label: string; value: string }
 
 type Props = Override<
-  React.HTMLAttributes<HTMLSelectElement>,
+  React.SelectHTMLAttributes<HTMLSelectElement>,
   {
     value: string
     options: SelectOption[]

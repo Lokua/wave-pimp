@@ -5,6 +5,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  session,
   type MenuItemConstructorOptions,
 } from 'electron'
 import { fileURLToPath } from 'node:url'
@@ -378,6 +379,19 @@ contextMenu({
 })
 
 app.whenReady().then(() => {
+  session.defaultSession.setPermissionCheckHandler(
+    (webContents, permission) =>
+      permission === 'media' && webContents === win?.webContents,
+  )
+  session.defaultSession.setPermissionRequestHandler(
+    (webContents, permission, callback, details) => {
+      const isAppWindow = webContents === win?.webContents
+      const mediaTypes =
+        'mediaTypes' in details ? details.mediaTypes : undefined
+      const requestsVideo = mediaTypes?.includes('video') ?? false
+      callback(isAppWindow && permission === 'media' && !requestsVideo)
+    },
+  )
   createWindow()
   createAppMenu()
 })

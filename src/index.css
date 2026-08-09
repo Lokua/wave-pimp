@@ -22,6 +22,9 @@
     --separator-color: #999;
     --slider-thumb-color: var(--text-color);
     --cursor-color: #f00;
+    --scope-grid-color: #e8e8e8;
+    --scope-label-color: #777;
+    --scope-trace-color: #d000b8;
   }
 }
 
@@ -44,6 +47,9 @@
     --separator-color: #666;
     --slider-thumb-color: var(--separator-color);
     --cursor-color: #ff6666;
+    --scope-grid-color: #202820;
+    --scope-label-color: #829082;
+    --scope-trace-color: #ff4fe1;
   }
 }
 

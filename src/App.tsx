@@ -21,6 +21,7 @@ import {
 } from './Generator/constants'
 import type { GeneratorSource } from './Generator/synthesis'
 import SettingsModal from './SettingsModal'
+import Scope from './Scope'
 import WaveEditor from './WaveEditor'
 import { BIT_DEPTHS, SAMPLE_RATES, type AudioFile, type Settings } from './types'
 import useDropArea from './useDropArea'
@@ -32,7 +33,7 @@ const DEFAULT_SETTINGS: Settings = {
   bitDepth: 24,
 }
 
-type Workspace = 'files' | 'generate' | 'edit'
+type Workspace = 'files' | 'generate' | 'edit' | 'scope'
 
 const Container = styled.div`
   display: flex;
@@ -457,6 +458,10 @@ export default function App() {
       )
     }
 
+    if (activeWorkspace === 'scope') {
+      return <Scope />
+    }
+
     if (!editorFile) {
       return <WorkspaceEmpty>Select a file to edit.</WorkspaceEmpty>
     }
@@ -504,6 +509,14 @@ export default function App() {
             onClick={() => setActiveWorkspace('generate')}
           >
             Generate
+          </NavButton>
+          <NavButton
+            type="button"
+            isActive={activeWorkspace === 'scope'}
+            disabled={isFilesProcessing}
+            onClick={() => setActiveWorkspace('scope')}
+          >
+            Scope
           </NavButton>
         </TitlebarNav>
       </Titlebar>
